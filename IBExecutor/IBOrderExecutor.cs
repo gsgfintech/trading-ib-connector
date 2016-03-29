@@ -650,7 +650,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             order.LimitPrice = limitPrice;
             order.TimeInForce = tif;
             order.Contract = GetContract(cross);
-            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
+            order.OurRef = strategy.Contains("|Client:") ? strategy : $"Strategy:{strategy}|Client:{ibClient.ClientName}";
             order.TransmitOrder = true;
             order.ParentOrderID = parentId ?? 0;
 
@@ -772,7 +772,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             order.StopPrice = stopPrice;
             order.TimeInForce = tif;
             order.Contract = GetContract(cross);
-            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
+            order.OurRef = strategy.Contains("|Client:") ? strategy : $"Strategy:{strategy}|Client:{ibClient.ClientName}";
             order.TransmitOrder = true;
             order.ParentOrderID = parentId ?? 0;
 
@@ -984,6 +984,108 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private void RequestOpenOrders()
         {
             ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
+        }
+
+        public async Task<int> PlaceMarketOrderWithContingentStop(Cross cross, OrderSide side, int quantity, TimeInForce tif, double stopPrice, string strategy, int? parentId = default(int?), double? lastBid = default(double?), double? lastMid = default(double?), double? lastAsk = default(double?), CancellationToken ct = default(CancellationToken))
+        {
+            if (!ibClient.IsConnected())
+            {
+                logger.Error("Cannot place MARKET order as the IB client is not connected");
+
+                return -1;
+            }
+
+            // If no custom cancellation token is specified we default to the program-level stop requested token
+            if (ct == null)
+                ct = this.stopRequestedCt;
+
+            if (ct.IsCancellationRequested)
+            {
+                logger.Error("Not placing order: operation cancelled");
+                return -1;
+            }
+
+            logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
+
+            // 1. Get the next valid ID
+            int orderID = await GetNextValidOrderID(ct);
+
+            if (orderID < 0)
+            {
+                logger.Error("Not placing order: failed to get the next valid order ID");
+                return -1;
+            }
+
+            // 2. Prepare the market order
+            Order order = new Order();
+            order.OrderID = orderID;
+            order.Cross = cross;
+            order.Side = side;
+            order.Quantity = quantity;
+            order.Type = MARKET;
+            order.TimeInForce = tif;
+            order.Contract = GetContract(cross);
+            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
+            order.TransmitOrder = true;
+            order.ParentOrderID = parentId ?? 0;
+
+            order.LastAsk = lastAsk;
+            order.LastBid = lastBid;
+            order.LastMid = lastMid;
+
+            // 3. Add the order to the placement queue
+            logger.Debug($"Queuing MARKET order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+            if (PlaceOrder(order) > -1)
+            {
+                // 4. Place the contingent stop order
+                return await PlaceStopOrder(cross, side == BUY ? SELL : BUY, quantity, stopPrice, TimeInForce.DAY, strategy, orderID, lastBid, lastMid, lastAsk, ct);
+            }
+            else
+                return -1;
+        }
+
+        public async Task<int> UpdateOrderLevel(int orderId, double newLevel, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
+        {
+            logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
+
+            Order currentOrder;
+            if (!orders.TryGetValue(orderId, out currentOrder))
+            {
+                logger.Error($"Order {orderId} is unknown. Unable to update its level");
+                return -1;
+            }
+
+            switch (currentOrder.Type)
+            {
+                case LIMIT:
+                    // 1. Place new order
+                    if (await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, lastBid, lastMid, lastAsk, ct) > -1)
+                    {
+                        // 2. Cancel original order
+                        return CancelOrder(orderId, ct);
+                    }
+                    else
+                    {
+                        logger.Error($"Failed to place new limit order. Not cancelling {orderId}");
+                        return -1;
+                    }
+                case STOP:
+                    // 1. Place new order
+                    if (await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, lastBid, lastMid, lastAsk, ct) > -1)
+                    {
+                        // 2. Cancel original order
+                        return CancelOrder(orderId, ct);
+                    }
+                    else
+                    {
+                        logger.Error($"Failed to place new limit order. Not cancelling {orderId}");
+                        return -1;
+                    }
+                default:
+                    logger.Error($"Updating the level of orders of type {currentOrder.Type} is not supported");
+                    return -1;
+            }
         }
 
         private class Request

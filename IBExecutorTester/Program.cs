@@ -16,6 +16,7 @@ using Capital.GSG.FX.Trading.Executor;
 using Capital.GSG.FX.MonitoringAppConnector;
 using Net.Teirlinck.FX.FXTradingMongoConnector;
 using Capital.GSG.FX.FXConverterServiceConnector;
+using System.Collections.Concurrent;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -40,6 +41,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         internal static int RtBarsCounter = 0;
 
+        private static ConcurrentDictionary<int, int> orderRequests = new ConcurrentDictionary<int, int>();
+
         static void Main(string[] args)
         {
             XmlConfigurator.Configure();
@@ -52,8 +55,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 { "TradingAccount", "DU215795" }
             };
 
-            string mongoDBHost = "gsg-dev-1.gsg.capital";
-            int mongoDBPort = 27017;
+            string mongoDBHost = "tryphon.gsg.capital";
+            int mongoDBPort = 27020;
             string mongoDBName = "fxtrading_dev";
             string monitoringEndpoint = "http://localhost:51468/";
             string convertServiceEndpoint = "https://gsg-dev-1.gsg.capital:6580";
@@ -93,6 +96,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 };
 
                 //brokerClient.OrderExecutor.OrderUpdated += Program_OrderUpdated;
+                //brokerClient.OrderExecutor.RequestCompleted += async (requestId, orderId, status, lastFillPrice) =>
+                //{
+                //    if (orderRequests.TryUpdate(requestId, orderId, -1))
+                //    {
+                //        logger.Info($"Updated request {requestId} with orderID {orderId}");
+
+                //        if (status == OrderRequestStatus.PendingFill)
+                //        {
+                //            await brokerClient.OrderExecutor.UpdateOrderLevel(orderId, 1.116);
+                //        }
+                //    }
+                //};
+
                 //brokerClient.TradesExecutor.TradeReceived += TradesExecutor_TradeReceived;
                 //brokerClient.PositionExecutor.PositionUpdated += PositionExecutor_PositionsUpdateReceived;
                 //brokerClient.PositionExecutor.AccountUpdated += PositionExecutor_AccountUpdated;
@@ -114,13 +130,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     }
                 }, null, 1000, 1000);
 
-                await SubscribeAndListenRTBars(brokerClient);
+                //await SubscribeAndListenRTBars(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
+                //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
                 //await PlaceMarketOrders(brokerClient.OrderExecutor);
+                await PlaceMarketOrderWithContingentStop(brokerClient.OrderExecutor);
 
                 //await PlaceStopOrders(brokerClient.OrderExecutor);
+                //await PlaceAndUpdateStopOrders(brokerClient.OrderExecutor);
 
                 //await PlaceTrailingMarketIfTouchedOrders(brokerClient.OrderExecutor);
 
@@ -160,7 +179,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async void Program_OrderUpdated(Order order)
         {
-            logger.Info("Received order update");
+            logger.Info($"Received order update: ID {order.OrderID}");
 
             CancellationTokenSource cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -238,26 +257,63 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Thread.Sleep(1000);
         }
 
+        private static async Task PlaceMarketOrderWithContingentStop(IOrderExecutor orderExecutor)
+        {
+            int order1Id = await orderExecutor.PlaceMarketOrderWithContingentStop(EURUSD, BUY, 20000, DAY, 1.100, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Console.WriteLine("MarketOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
+            Thread.Sleep(1000);
+        }
+
         private static async Task PlaceLimitOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceLimitOrder(EURUSD, SELL, 20000, 1.0922, IOC, "IBExecutorTester", ct: stopRequestedCts.Token);
+            int order1Id = await orderExecutor.PlaceLimitOrder(EURUSD, SELL, 20000, 1.125, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("LimitOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.0923, IOC, "IBExecutorTester", ct: stopRequestedCts.Token);
+            int order2Id = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("LimitOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
             Thread.Sleep(1000);
         }
 
+        private static async Task PlaceAndUpdateLimitOrders(IOrderExecutor orderExecutor)
+        {
+            //int request1 = await orderExecutor.PlaceLimitOrder(EURUSD, SELL, 20000, 1.125, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+
+            //if (request1 > 0)
+            //    orderRequests.TryAdd(request1, -1);
+
+            //Console.WriteLine("LimitOrder1: {0} ({1})", request1 > 0 ? "SUCCESS" : "FAILED", request1);
+            //Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+
+            int request2 = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+
+            if (request2 > -1)
+                orderRequests.TryAdd(request2, -1);
+
+            Console.WriteLine("LimitOrder2: {0} ({1})", request2 > 0 ? "SUCCESS" : "FAILED", request2);
+            Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+        }
+
         private static async Task PlaceStopOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.05, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            int order1Id = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.115, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("StopOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceStopOrder(EURUSD, BUY, 20000, 1.06, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            int order2Id = await orderExecutor.PlaceStopOrder(EURUSD, BUY, 20000, 1.120, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("StopOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
             Thread.Sleep(1000);
+        }
+
+        private static async Task PlaceAndUpdateStopOrders(IOrderExecutor orderExecutor)
+        {
+            int request = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.115, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+
+            if (request > -1)
+                orderRequests.TryAdd(request, -1);
+
+            Console.WriteLine("StopOrder1: {0} ({1})", request > 0 ? "SUCCESS" : "FAILED", request);
+            Task.Delay(TimeSpan.FromSeconds(1)).Wait();
         }
 
         private static async void PositionExecutor_PositionsUpdateReceived(Position position)

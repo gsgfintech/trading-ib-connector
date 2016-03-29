@@ -37,12 +37,12 @@
       <HintPath>..\packages\Capital.GSG.FX.FXConverterServiceConnector.1.0.0.2\lib\net46\Capital.GSG.FX.FXConverterServiceConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.MonitoringAppConnector, Version=1.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.MonitoringAppConnector.1.7.2.1\lib\net46\Capital.GSG.FX.MonitoringAppConnector.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.MonitoringAppConnector, Version=1.7.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.MonitoringAppConnector.1.7.3.0\lib\net46\Capital.GSG.FX.MonitoringAppConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.2.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.2.0.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.4.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.4.2.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="log4net, Version=1.2.15.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
@@ -61,12 +61,12 @@
       <HintPath>..\packages\MongoDB.Driver.Core.2.2.3\lib\net45\MongoDB.Driver.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.Data, Version=1.31.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.31.2.0\lib\net46\Net.Teirlinck.FX.Data.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.Data, Version=1.32.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.32.3.0\lib\net46\Net.Teirlinck.FX.Data.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.FXTradingMongoConnector, Version=5.4.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.5.4.1.0\lib\net46\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.FXTradingMongoConnector, Version=5.5.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.5.5.0.1\lib\net46\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Net.Teirlinck.Utils, Version=1.7.0.0, Culture=neutral, processorArchitecture=MSIL">
