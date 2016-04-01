@@ -12,7 +12,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public event Action<int> NextValidIDReceived;
         public event Action<int, Contract, Order, OrderState> OpenOrdersReceived;
         public event Action OrderOpenRequestEnd;
-        public event Action<int, OrderStatusCode, int, int, double, int, int, double, int, string> OrderStatusChangeReceived;
+        public event Action<int, OrderStatusCode?, int?, int?, double?, int, int?, double?, int, string> OrderStatusChangeReceived;
 
         /// <summary>
         /// Upon accepting a Delta-Neutral RFQ(request for quote), the server sends a deltaNeutralValidation() message with the UnderComp structure. 
@@ -82,7 +82,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         {
             OrderStatusCode status = GetFromStrCode(statusStr);
 
-            OrderStatusChangeReceived?.Invoke(orderId, status, filledQuantity, remainingQuantity, avgFillPrice, permId, parentId, lastFillPrice, clientId, whyHeld);
+            OrderStatusChangeReceived?.Invoke(orderId, status != OrderStatusCode.UNKNOWN ? status : (OrderStatusCode?)null, filledQuantity > 0 ? filledQuantity : (int?)null, remainingQuantity > 0 ? remainingQuantity : (int?)null, avgFillPrice > 0 ? avgFillPrice : (double?)null, permId, parentId > 0 ? parentId : (int?)null, lastFillPrice > 0 ? lastFillPrice : (double?)null, clientId, whyHeld);
         }
     }
 }

@@ -1,31 +1,31 @@
-﻿using log4net;
+﻿using Capital.GSG.FX.FXConverterServiceConnector;
+using log4net;
 using Net.Teirlinck.FX.Data.ContractData;
-using static Net.Teirlinck.FX.Data.ContractData.Cross;
 using static Net.Teirlinck.FX.Data.ContractData.Currency;
 using Net.Teirlinck.FX.Data.OrderData;
 using static Net.Teirlinck.FX.Data.OrderData.OrderSide;
-using static Net.Teirlinck.FX.Data.OrderData.OrderType;
 using static Net.Teirlinck.FX.Data.OrderData.OrderStatusCode;
+using static Net.Teirlinck.FX.Data.OrderData.OrderType;
+using Net.Teirlinck.FX.FXTradingMongoConnector;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Capital.GSG.FX.Trading.Executor;
-using System.Collections.Concurrent;
-using Net.Teirlinck.FX.FXTradingMongoConnector;
-using System.Threading.Tasks;
-using System.Threading;
 using System.Diagnostics;
-using Net.Teirlinck.FX.Data.System;
-using Capital.GSG.FX.FXConverterServiceConnector;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using Net.Teirlinck.Utils;
+using Capital.GSG.FX.MarketDataService.Connector;
+using Net.Teirlinck.FX.Data.MarketData;
+using Net.Teirlinck.FX.Data.System;
+using Capital.GSG.FX.Trading.Executor;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
     public class IBOrderExecutor : IOrderExecutor
     {
         private static ILog logger = LogManager.GetLogger(nameof(IBOrderExecutor));
-
-        private readonly Cross[] nzdPairs = new Cross[] { AUDNZD, EURNZD, GBPNZD, NZDCHF, NZDJPY, NZDUSD };
 
         private static IBOrderExecutor _instance;
 
@@ -35,11 +35,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly ConvertConnector convertServiceConnector;
         private readonly IBClient ibClient;
         private readonly MongoDBServer mongoDBServer;
+        private readonly MDConnector mdConnector;
+
+        public event Action<Order> OrderUpdated;
 
         private Dictionary<Cross, Contract> contracts = new Dictionary<Cross, Contract>();
         private readonly ConcurrentDictionary<int, Order> orders = new ConcurrentDictionary<int, Order>();
-
-        public event Action<Order> OrderUpdated;
 
         private int nextValidOrderId = -1;
         private object nextValidOrderIdLocker = new object();
@@ -50,26 +51,97 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private ConcurrentQueue<Order> ordersToPlaceQueue = new ConcurrentQueue<Order>();
         private ConcurrentQueue<int> ordersToCancelQueue = new ConcurrentQueue<int>();
 
-        // Pending requests
-        private ConcurrentDictionary<int, Request> orderPlaceRequests = new ConcurrentDictionary<int, Request>();
-        private ConcurrentDictionary<int, int> orderCancelRequests = new ConcurrentDictionary<int, int>();
+        private async Task<int> GetNextValidOrderID(CancellationToken stopRequestedCt)
+        {
+            if (nextValidOrderId < 0)
+            {
+                CancellationTokenSource internalCts = new CancellationTokenSource();
+                internalCts.CancelAfter(TimeSpan.FromSeconds(3)); // Shouldn't take more than 3 seconds for IB to send us the next valid order ID
 
-        // Failed orders
-        private List<int> rejectedOrders = new List<int>();
-        private List<int> rejectedOrderCancellations = new List<int>();
+                if (!nextValidOrderIdRequested)
+                {
+                    lock (nextValidOrderIdRequestedLocker)
+                    {
+                        nextValidOrderIdRequested = true;
+                    }
 
-        /// <summary>
-        /// Arg 1: requestId
-        /// Arg 2: orderId
-        /// Arg 3: request status (success / fail)
-        /// Arg 4: fill price (if any)
-        /// </summary>
-        public event Action<int, int, OrderRequestStatus, double?> RequestCompleted;
+                    logger.Debug($"Requesting next valid order ID from IB for first time initialization");
 
-        private int nextRequestId = 0;
-        private object nextRequestIdLocker = new object();
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
 
-        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, CancellationToken stopRequestedCt)
+                    int nextId = await ibClient.RequestManager.OrdersRequestManager.GetNextValidOrderID(internalCts.Token);
+
+                    sw.Stop();
+
+                    if (nextId > 0)
+                    {
+                        logger.Debug($"Received next valid order ID from IB after {sw.ElapsedMilliseconds}ms: {nextId}");
+
+                        lock (nextValidOrderIdLocker)
+                        {
+                            nextValidOrderId = nextId;
+                        }
+                    }
+                    else
+                    {
+                        logger.Fatal($"Failed to receive the next valid order ID from IB");
+                    }
+                }
+                else
+                {
+                    logger.Debug("Flag nextValidOrderIdRequested is already set to true but nextValidOrderId is still -1. This suggests that the next valid order ID has been requested from IB but not received yet. Will wait");
+
+                    await Task.Run(() =>
+                    {
+                        try
+                        {
+                            while (nextValidOrderId < 0)
+                            {
+                                // Check the local timeout
+                                internalCts.Token.ThrowIfCancellationRequested();
+
+                                // Check the program timeout
+                                stopRequestedCt.ThrowIfCancellationRequested();
+
+                                Task.Delay(TimeSpan.FromMilliseconds(500)).Wait();
+                            }
+
+                            // It's been received, now we need to increment it
+                            lock (nextValidOrderIdLocker)
+                            {
+                                nextValidOrderId++;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            logger.Debug("Cancelling next valid order ID waiting loop");
+                        }
+                    }, internalCts.Token);
+                }
+            }
+            else
+            {
+                lock (nextValidOrderIdLocker)
+                {
+                    nextValidOrderId++;
+                }
+
+                logger.Debug($"Next valid order ID was increased to {nextValidOrderId}");
+            }
+
+            return nextValidOrderId;
+        }
+
+        private Contract GetContract(Cross cross)
+        {
+            if (contracts.ContainsKey(cross))
+                return contracts[cross];
+            else
+                throw new ArgumentException($"There is no contract information for {cross}");
+        }
+
+        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -82,6 +154,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             if (convertServiceConnector == null)
                 throw new ArgumentNullException(nameof(convertServiceConnector));
+
+            if (mdConnector == null)
+                throw new ArgumentNullException(nameof(mdConnector));
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -100,11 +175,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.mongoDBServer = mongoDBServer;
             this.convertServiceConnector = convertServiceConnector;
+            this.mdConnector = mdConnector;
         }
 
-        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, CancellationToken stopRequestedCt)
+        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, CancellationToken stopRequestedCt)
         {
-            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, convertServiceConnector, stopRequestedCt);
+            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, convertServiceConnector, mdConnector, stopRequestedCt);
 
             await _instance.LoadContracts();
 
@@ -114,6 +190,183 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             _instance.RequestOpenOrders();
 
             return _instance;
+        }
+
+        private void ResponseManager_OpenOrdersReceived(int orderId, Contract contract, Order order, OrderState orderState)
+        {
+            logger.Info($"Received notification of open order: {orderId}");
+
+            OrderStatusCode status = OrderStatusCodeUtils.GetFromStrCode(orderState?.Status);
+
+            // IB will usually not send an update PreSubmitted => Submitted
+            if (status == PreSubmitted)
+                status = Submitted;
+
+            order = orders.AddOrUpdate(orderId, (key) =>
+            {
+                // Try to load order information from the database
+                Task<Order> orderFetchTask = mongoDBServer.OrderActioner.Get(order.PermanentID, stopRequestedCt);
+                orderFetchTask.Wait();
+
+                Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
+
+                if (existingOrder == null)
+                {
+                    logger.Warn($"Order {orderId} was not found in the database. Adding to the list");
+
+                    order.Contract = contract;
+                    order.Cross = contract?.Cross ?? Cross.UNKNOWN;
+                    order.WarningMessage = orderState?.WarningMessage;
+                    order.LastUpdateTime = DateTime.Now;
+                    order.Status = status != OrderStatusCode.UNKNOWN ? status : Submitted;
+                    order.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = order.Status });
+
+                    return order;
+                }
+                else
+                {
+                    logger.Info($"Retrieved information on order {orderId} from the database");
+
+                    existingOrder.WarningMessage = orderState?.WarningMessage;
+                    existingOrder.LastUpdateTime = DateTime.Now;
+
+                    if (status != OrderStatusCode.UNKNOWN)
+                    {
+                        existingOrder.Status = status;
+
+                        if (existingOrder.History.LastOrDefault()?.Status != status)
+                            existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = status });
+                    }
+
+                    return existingOrder;
+                }
+            }, (key, oldValue) =>
+            {
+                logger.Info($"Updating order {orderId} in the list");
+
+                order.WarningMessage = orderState?.WarningMessage;
+                oldValue.LastUpdateTime = DateTime.Now;
+
+                if (status != OrderStatusCode.UNKNOWN)
+                {
+                    oldValue.Status = status;
+
+                    if (oldValue.History.LastOrDefault()?.Status != status)
+                        oldValue.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = status });
+                }
+
+                return oldValue;
+            });
+
+            HandleOrderUpdate(order).Wait();
+        }
+
+        private void ResponseManager_OrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
+        {
+            logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
+
+            //IB will usually not send an update PreSubmitted => Submitted
+            if (status == PreSubmitted)
+                status = Submitted;
+
+            // 3. Add or update the order for tracking
+            Order order = orders.AddOrUpdate(orderId, (id) =>
+            {
+                // Try to load order information from the database
+                Task<Order> orderFetchTask = mongoDBServer.OrderActioner.Get(permId, stopRequestedCt);
+                orderFetchTask.Wait();
+
+                Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
+
+                if (existingOrder == null)
+                {
+                    logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
+
+                    Order newOrder = new Order();
+                    newOrder.OrderID = orderId;
+                    newOrder.PermanentID = permId;
+                    newOrder.ParentOrderID = parentId;
+                    newOrder.ClientID = clientId;
+                    newOrder.LastUpdateTime = DateTime.Now;
+
+                    newOrder.Status = status ?? Submitted;
+
+                    if (status == Submitted)
+                        newOrder.PlacedTime = DateTime.Now;
+                    else if (status == Filled)
+                        newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
+
+                    newOrder.WarningMessage = whyHeld;
+
+                    newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = newOrder.Status });
+
+                    return newOrder;
+                }
+                else
+                {
+                    logger.Info($"Retrieved information on order {orderId} from the database");
+
+                    existingOrder.PermanentID = permId;
+                    existingOrder.LastUpdateTime = DateTime.Now;
+
+                    if (status.HasValue)
+                    {
+                        existingOrder.Status = status.Value;
+
+                        if (existingOrder.History.LastOrDefault()?.Status != status.Value)
+                            existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = existingOrder.Status });
+                    }
+
+                    if (status == Filled)
+                        existingOrder.FillPrice = avgFillPrice ?? lastFillPrice;
+
+                    existingOrder.WarningMessage = whyHeld;
+
+                    return existingOrder;
+                }
+            },
+            (key, oldValue) =>
+            {
+                logger.Info($"Received update notification for order {orderId} ({status})");
+
+                oldValue.PermanentID = permId;
+
+                if (status.HasValue)
+                {
+                    oldValue.Status = status.Value;
+
+                    if (oldValue.History.LastOrDefault()?.Status != status.Value)
+                        oldValue.History.Add(new OrderHistoryPoint() { Status = status.Value, Timestamp = DateTime.Now });
+                }
+
+                if (status == Filled)
+                    oldValue.FillPrice = avgFillPrice ?? lastFillPrice;
+
+                oldValue.LastUpdateTime = DateTime.Now;
+
+                return oldValue;
+            });
+
+            HandleOrderUpdate(order).Wait();
+        }
+
+        private async Task HandleOrderUpdate(Order order)
+        {
+            if (order.PermanentID > 0)
+            {
+                logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
+                await mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt);
+
+                brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
+                OrderUpdated?.Invoke(order);
+            }
+            else
+                logger.Error($"Order {order.OrderID} has a permanent ID of 0. This is unexpected");
+        }
+
+        private void RequestOpenOrders()
+        {
+            ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
         }
 
         private void StartOrdersPlacingQueue()
@@ -208,14 +461,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }, stopRequestedCt);
         }
 
-        private int GetNextRequestId()
-        {
-            lock (nextRequestIdLocker)
-            {
-                return nextRequestId++;
-            }
-        }
-
         private async Task LoadContracts()
         {
             logger.Debug("Loading contracts");
@@ -230,48 +475,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Loaded {contracts.Count} contracts");
         }
 
-        private async void ResponseManager_OpenOrdersReceived(int orderId, Contract contract, Order order, OrderState orderState)
+        private async Task<int?> GetUSDQuantity(Cross cross, int quantity)
         {
-            logger.Info($"Received notification of new open order: {orderId}");
-
-            // 1. Enrich
-            order.Contract = contract;
-            order.Cross = contract?.Cross ?? Cross.UNKNOWN;
-            order.WarningMessage = orderState?.WarningMessage;
-            order.PlacedTime = DateTime.Now;
-            order.LastUpdateTime = DateTime.Now;
-            order.EstimatedCommission = EstimateCommission(order.UsdQuantity, order.OrderID);
-            order.EstimatedCommissionCcy = order.EstimatedCommission.HasValue ? USD : (Currency?)null;
-
-            #region USD Quantity
-            if (CrossUtils.GetQuotedCurrency(order.Cross) == USD)
-                order.UsdQuantity = order.Quantity;
+            if (CrossUtils.GetQuotedCurrency(cross) == USD)
+                return quantity;
             else
             {
-                var usdQuantity = await convertServiceConnector.Convert(order.Quantity, CrossUtils.GetQuotedCurrency(order.Cross), USD, stopRequestedCt);
-                order.UsdQuantity = usdQuantity.HasValue ? (int)Math.Floor(usdQuantity.Value) : (int?)null;
+                var usdQuantity = await convertServiceConnector.Convert(quantity, CrossUtils.GetQuotedCurrency(cross), USD, stopRequestedCt);
+                return usdQuantity.HasValue ? (int)Math.Floor(usdQuantity.Value) : (int?)null;
             }
-            #endregion
-
-            if (order.Status == OrderStatusCode.UNKNOWN)
-            {
-                if (!string.IsNullOrEmpty(orderState?.Status))
-                    order.Status = OrderStatusCodeUtils.GetFromStrCode(orderState.Status);
-                else
-                    order.Status = Submitted;
-            }
-
-            // 2. Add or update in the queue
-            order.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = order.Status });
-            Order updatedOrder = orders.AddOrUpdate(orderId, order, (key, oldValue) => order);
-
-            NotifyOrderUpdate(updatedOrder);
-        }
-
-        private void NotifyOrderUpdate(Order order)
-        {
-            brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
-            OrderUpdated?.Invoke(order);
         }
 
         private double? EstimateCommission(int? usdQuantity, int orderId)
@@ -295,322 +507,57 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private async Task<double?> CalculateExitProfitabilityLevel(int quantity, Cross cross, OrderSide entrySide, double entryRate, double usdEntryCommission, bool inBps)
+        private async Task<Order> CreateOrder(int orderId, Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId)
         {
-            double usdTotalCommission = 2 * usdEntryCommission; // cost of exit = 2 * commission (entry commission + exit commission)
+            RTBar latest = await mdConnector.GetLatest(cross, stopRequestedCt);
 
-            double? commission = null;
-
-            if (CrossUtils.GetQuotedCurrency(cross) == USD)
-                commission = usdTotalCommission;
-            else
-                commission = await convertServiceConnector.Convert(usdTotalCommission, USD, CrossUtils.GetQuotedCurrency(cross), stopRequestedCt);
-
-            if (!commission.HasValue)
+            Order order = new Order()
             {
-                logger.Error($"Cannot calculate exit profitability level: no exchange rate in DB for {cross}");
-                return null;
-            }
-
-            double commissionRate = commission.Value / quantity;
-
-            double multiplier = inBps ? 0.0001 : 1.0;
-
-            switch (entrySide)
-            {
-                case BUY: // must go up to be profitable
-                    return (entryRate + commissionRate) * multiplier;
-                case SELL: // must go down to be profitable
-                    return (entryRate - commissionRate) * multiplier;
-                default:
-                    return null;
-            }
-        }
-
-        private void ResponseManager_OrderStatusChangeReceived(int orderId, OrderStatusCode status, int filledQuantity, int remainingQuantity, double avgFillPrice, int permId, int parentId, double lastFillPrice, int clientId, string whyHeld)
-        {
-            logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
-
-            // IB will usually not send an update PreSubmitted => Submitted
-            if (status == PreSubmitted)
-                status = Submitted;
-
-            Request placeRequest;
-            int cancelRequestId;
-
-            // 1. Check if this order was being tracked for placement confirmation
-            if (orderPlaceRequests.TryGetValue(orderId, out placeRequest))
-            {
-                if (status == Submitted || status == PendingSubmit)
-                {
-                    logger.Debug($"Received submission confirmation for order {orderId}");
-
-                    RequestCompleted?.Invoke(placeRequest.RequestId, orderId, OrderRequestStatus.PendingFill, null);
-                }
-                else if (status == Filled)
-                {
-                    logger.Debug($"Received fill confirmation for order {orderId}");
-
-                    RequestCompleted?.Invoke(placeRequest.RequestId, orderId, OrderRequestStatus.Filled, lastFillPrice > 0 ? lastFillPrice : avgFillPrice);
-
-                    orderPlaceRequests.TryRemove(orderId, out placeRequest);
-                }
-                else
-                {
-                    NotifyRejectedOrder(orderId, status);
-
-                    PlaceOrder(placeRequest.Order, placeRequest.RequestId);
-                }
-            }
-            // 2. Check if this order was being tracked for cancellation confirmation
-            else if (orderCancelRequests.TryGetValue(orderId, out cancelRequestId))
-            {
-                if (status == PendingCancel)
-                {
-                    logger.Debug($"Received pending cancellation confirmation for order {orderId}");
-
-                    RequestCompleted?.Invoke(cancelRequestId, orderId, OrderRequestStatus.PendingCancel, null);
-                }
-                else if (status == Cancelled || status == ApiCanceled)
-                {
-                    logger.Debug($"Received cancellation confirmation for order {orderId}");
-
-                    RequestCompleted?.Invoke(cancelRequestId, orderId, OrderRequestStatus.Cancelled, null);
-
-                    orderCancelRequests.TryRemove(orderId, out cancelRequestId);
-                }
-                else
-                {
-                    NotifyFailedOrderCancellation(orderId, status);
-
-                    CancelOrder(orderId, cancelRequestId);
-                }
-            }
-
-            // 3. Add or update the order for tracking
-            Order order = orders.AddOrUpdate(orderId, (id) =>
-            {
-                logger.Error($"Received notification of a NEW order ({orderId}). This is unexepected. Please check");
-
-                Order newOrder = new Order()
-                {
-                    OrderID = orderId,
-                    Status = status,
-                    PlacedTime = DateTime.Now,
-                    LastUpdateTime = DateTime.Now,
-                    PermanentID = permId,
-                    ParentOrderID = parentId > 0 ? parentId : (int?)null,
-                    ClientID = clientId
-                };
-
-                return newOrder;
-            },
-            (key, oldValue) =>
-            {
-                logger.Debug($"Update status of order {orderId} to {status}");
-
-                DateTime timestamp = DateTime.Now;
-
-                // Add history point (make sure to avoid dupes)
-                if (oldValue.History.LastOrDefault<OrderHistoryPoint>()?.Status != status) // the status has actually changed since the last update...
-                    oldValue.History.Add(new OrderHistoryPoint() { Status = status, Timestamp = timestamp });
-
-                oldValue.ParentOrderID = parentId > 0 ? parentId : (int?)null;
-                oldValue.ClientID = clientId;
-                oldValue.PermanentID = permId;
-
-                if (oldValue.Status != Cancelled && oldValue.Status != Filled) // these status or final and can't be changed
-                    oldValue.Status = status;
-
-                oldValue.FillPrice = lastFillPrice > 0 ? lastFillPrice : (double?)null;
-                oldValue.LastUpdateTime = timestamp;
-
-                // For new bracket orders (the parent) filled we can try to calculate the exit profitability level
-                if (status == Filled && parentId < 1 && oldValue.EstimatedCommission.HasValue)
-                {
-                    Task<double?> task = CalculateExitProfitabilityLevel(oldValue.Quantity, oldValue.Cross, oldValue.Side, lastFillPrice, oldValue.EstimatedCommission.Value, false);
-
-                    task.Wait();
-
-                    oldValue.ExitProfitabilityLevel = task.Result;
-
-                    if (oldValue.ExitProfitabilityLevel.HasValue)
-                        logger.Debug($"Calculated an exit profitability level of {oldValue.ExitProfitabilityLevel} for order {oldValue.OrderID} (last fill: {lastFillPrice}");
-                    else
-                        logger.Debug($"Failed to calculate exit profitability level for order {oldValue.OrderID} (last fill: {lastFillPrice}");
-                }
-
-                return oldValue;
-            });
-
-            NotifyOrderUpdate(order);
-        }
-
-        private void NotifyRejectedOrder(int orderId, OrderStatusCode status)
-        {
-            rejectedOrders.Add(orderId);
-
-            string err = $"Received rejection notice for order {orderId}. Will attempt to place it again (status was: {status})";
-
-            logger.Error(err);
-
-            brokerClient.UpdateStatus("RejectedOrders", string.Join(",", rejectedOrders), SystemStatusLevel.YELLOW);
-
-            SendError($"Order {orderId} rejected", err);
-        }
-
-        private void NotifyFailedOrderCancellation(int orderId, OrderStatusCode status)
-        {
-            rejectedOrderCancellations.Add(orderId);
-
-            string err = $"Received rejection notice for cancellation of order {orderId}. Will attempt to cancel it again (status was: {status})";
-
-            logger.Error(err);
-
-            brokerClient.UpdateStatus("RejectedOrderCancellations", string.Join(",", rejectedOrderCancellations), SystemStatusLevel.YELLOW);
-
-            SendError($"Order {orderId} cancellation rejected", err);
-        }
-
-        private void SendError(string subject, string body)
-        {
-            brokerClient.OnAlert(new Alert(AlertLevel.ERROR, "IBOrderExecutor", subject, body));
-        }
-
-        private Contract GetContract(Cross cross)
-        {
-            if (contracts.ContainsKey(cross))
-                return contracts[cross];
-            else
-                throw new ArgumentException($"There is no contract information for {cross}");
-        }
-
-        private async Task<int> GetNextValidOrderID(CancellationToken stopRequestedCt)
-        {
-            if (nextValidOrderId < 0)
-            {
-                CancellationTokenSource internalCts = new CancellationTokenSource();
-                internalCts.CancelAfter(TimeSpan.FromSeconds(3)); // Shouldn't take more than 3 seconds for IB to send us the next valid order ID
-
-                if (!nextValidOrderIdRequested)
-                {
-                    lock (nextValidOrderIdRequestedLocker)
+                OrderID = orderId,
+                Cross = cross,
+                Side = side,
+                Quantity = quantity,
+                TimeInForce = tif,
+                Contract = GetContract(cross),
+                OurRef = strategy.Contains("|Client:") ? strategy : $"Strategy:{strategy}|Client:{ibClient.ClientName}",
+                ParentOrderID = parentId ?? 0,
+                LastAsk = latest?.Ask.Close,
+                LastBid = latest?.Bid.Close,
+                LastMid = latest?.Mid.Close,
+                TransmitOrder = true,
+                Status = PreSubmitted,
+                History = new List<OrderHistoryPoint>() {
+                    new OrderHistoryPoint()
                     {
-                        nextValidOrderIdRequested = true;
+                        Status = PreSubmitted,
+                        Timestamp = DateTime.Now
                     }
+                },
+                LastUpdateTime = DateTime.Now,
+                PlacedTime = DateTime.Now,
+                UsdQuantity = await GetUSDQuantity(cross, quantity)
+            };
 
-                    logger.Debug($"Requesting next valid order ID from IB for first time initialization");
-
-                    Stopwatch sw = new Stopwatch();
-                    sw.Start();
-
-                    int nextId = await ibClient.RequestManager.OrdersRequestManager.GetNextValidOrderID(internalCts.Token);
-
-                    sw.Stop();
-
-                    if (nextId > 0)
-                    {
-                        logger.Debug($"Received next valid order ID from IB after {sw.ElapsedMilliseconds}ms: {nextId}");
-
-                        lock (nextValidOrderIdLocker)
-                        {
-                            nextValidOrderId = nextId;
-                        }
-                    }
-                    else
-                    {
-                        logger.Fatal($"Failed to receive the next valid order ID from IB");
-                    }
-                }
-                else
-                {
-                    logger.Debug("Flag nextValidOrderIdRequested is already set to true but nextValidOrderId is still -1. This suggests that the next valid order ID has been requested from IB but not received yet. Will wait");
-
-                    await Task.Run(() =>
-                    {
-                        try
-                        {
-                            while (nextValidOrderId < 0)
-                            {
-                                // Check the local timeout
-                                internalCts.Token.ThrowIfCancellationRequested();
-
-                                // Check the program timeout
-                                stopRequestedCt.ThrowIfCancellationRequested();
-
-                                Task.Delay(TimeSpan.FromMilliseconds(500)).Wait();
-                            }
-
-                            // It's been received, now we need to increment it
-                            lock (nextValidOrderIdLocker)
-                            {
-                                nextValidOrderId++;
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            logger.Debug("Cancelling next valid order ID waiting loop");
-                        }
-                    }, internalCts.Token);
-                }
-            }
-            else
+            #region Commission
+            if (order.UsdQuantity.HasValue)
             {
-                lock (nextValidOrderIdLocker)
-                {
-                    nextValidOrderId++;
-                }
+                // See https://www.interactivebrokers.com.hk/en/index.php?f=commission&p=fx&ns=T
+                double bps = 0.2; // bps
+                double min = 2; // USD
 
-                logger.Debug($"Next valid order ID was increased to {nextValidOrderId}");
+                double commission = Math.Max(min, CrossUtils.GetPipValue(cross) * bps * order.UsdQuantity.Value);
+
+                logger.Debug($"Estimated USD commission for order {orderId} = Math.Max({min}, {CrossUtils.GetPipValue(cross)} * {bps} * {order.UsdQuantity}) = {commission}");
+
+                order.EstimatedCommission = commission;
+                order.EstimatedCommissionCcy = USD;
             }
+            #endregion
 
-            return nextValidOrderId;
+            return order;
         }
 
-        public void Dispose()
-        {
-            logger.Info("Disposing IBOrderExecutor");
-
-            ibClient.ResponseManager.OrderStatusChangeReceived -= ResponseManager_OrderStatusChangeReceived;
-        }
-
-        public int CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
-        {
-            return CancelOrder(orderId, null, ct);
-        }
-
-        public int CancelOrder(int orderId, int? requestId, CancellationToken ct = default(CancellationToken))
-        {
-            if (!ibClient.IsConnected())
-            {
-                logger.Error("Cannot cancel order as the IB client is not connected");
-
-                return -1;
-            }
-
-            // If no custom cancellation token is specified we default to the program-level stop requested token
-            if (ct == null)
-                ct = this.stopRequestedCt;
-
-            if (ct.IsCancellationRequested)
-            {
-                logger.Error("Not cancelling order: operation cancelled");
-                return -1;
-            }
-
-            logger.Warn($"Cancelling order {orderId}");
-
-            if (!requestId.HasValue)
-                requestId = GetNextRequestId();
-
-            ordersToCancelQueue.Enqueue(orderId);
-
-            orderCancelRequests.AddOrUpdate(orderId, requestId.Value, (key, value) => requestId.Value);
-
-            return requestId.Value;
-        }
-
-        public async Task<int> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategy, int? parentId = null, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -641,98 +588,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
 
             // 2. Prepare the limit order
-            Order order = new Order();
-            order.OrderID = orderID;
-            order.Cross = cross;
-            order.Side = side;
-            order.Quantity = quantity;
+            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
             order.Type = LIMIT;
             order.LimitPrice = limitPrice;
-            order.TimeInForce = tif;
-            order.Contract = GetContract(cross);
-            order.OurRef = strategy.Contains("|Client:") ? strategy : $"Strategy:{strategy}|Client:{ibClient.ClientName}";
-            order.TransmitOrder = true;
-            order.ParentOrderID = parentId ?? 0;
-
-            order.LastAsk = lastAsk;
-            order.LastBid = lastBid;
-            order.LastMid = lastMid;
 
             // 3. Add the order to the placement queue
             logger.Debug($"Queuing LIMIT order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            return PlaceOrder(order);
+            PlaceOrder(order, ct);
+
+            return orderID;
         }
 
-        private int PlaceOrder(Order order, int? requestId = null)
-        {
-            if (!requestId.HasValue)
-                requestId = GetNextRequestId();
-
-            ordersToPlaceQueue.Enqueue(order);
-
-            Request request = new Request(requestId.Value, order);
-
-            orderPlaceRequests.AddOrUpdate(order.OrderID, request, (key, value) => request);
-
-            return requestId.Value;
-        }
-
-        public async Task<int> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
-        {
-            if (!ibClient.IsConnected())
-            {
-                logger.Error("Cannot place TRAILING_MARKET_IF_TOUCHED order as the IB client is not connected");
-
-                return -1;
-            }
-
-            // If no custom cancellation token is specified we default to the program-level stop requested token
-            if (ct == null)
-                ct = this.stopRequestedCt;
-
-            if (ct.IsCancellationRequested)
-            {
-                logger.Error("Not placing order: operation cancelled");
-                return -1;
-            }
-
-            logger.Info($"Preparing TRAILING_MARKET_IF_TOUCHED order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
-
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the limit order
-            Order order = new Order();
-            order.OrderID = orderID;
-            order.Cross = cross;
-            order.Side = side;
-            order.Quantity = quantity;
-            order.Type = TRAILING_MARKET_IF_TOUCHED;
-            order.TrailingAmount = trailingAmount;
-            order.TimeInForce = tif;
-            order.Contract = GetContract(cross);
-            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
-            order.TransmitOrder = true;
-            order.ParentOrderID = parentId ?? 0;
-
-            order.LastAsk = lastAsk;
-            order.LastBid = lastBid;
-            order.LastMid = lastMid;
-
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
-
-            return PlaceOrder(order);
-        }
-
-        public async Task<int> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -763,80 +631,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
 
             // 2. Prepare the limit order
-            Order order = new Order();
-            order.OrderID = orderID;
-            order.Cross = cross;
-            order.Side = side;
-            order.Quantity = quantity;
+            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
             order.Type = STOP;
             order.StopPrice = stopPrice;
-            order.TimeInForce = tif;
-            order.Contract = GetContract(cross);
-            order.OurRef = strategy.Contains("|Client:") ? strategy : $"Strategy:{strategy}|Client:{ibClient.ClientName}";
-            order.TransmitOrder = true;
-            order.ParentOrderID = parentId ?? 0;
-
-            order.LastAsk = lastAsk;
-            order.LastBid = lastBid;
-            order.LastMid = lastMid;
 
             // 3. Add the order to the placement queue
             logger.Debug($"Queuing STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            return PlaceOrder(order);
+            PlaceOrder(order, ct);
+
+            return orderID;
         }
 
-        public async Task<int> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
-        {
-            if (!ibClient.IsConnected())
-            {
-                logger.Error("Cannot place TRAILING_STOP order as the IB client is not connected");
-
-                return -1;
-            }
-
-            // If no custom cancellation token is specified we default to the program-level stop requested token
-            if (ct == null)
-                ct = this.stopRequestedCt;
-
-            if (ct.IsCancellationRequested)
-            {
-                logger.Error("Not placing order: operation cancelled");
-                return -1;
-            }
-
-            logger.Info($"Preparing TRAILING_STOP order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
-
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the limit order
-            Order order = new Order();
-            order.OrderID = orderID;
-            order.Side = side;
-            order.Quantity = quantity;
-            order.Cross = cross;
-            order.Type = TRAILING_STOP;
-            order.TrailingAmount = trailingAmount;
-            order.TimeInForce = tif;
-            order.Contract = GetContract(cross);
-            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
-            order.TransmitOrder = true;
-            order.ParentOrderID = parentId ?? 0;
-
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
-
-            return PlaceOrder(order);
-        }
-
-        public async Task<int> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -867,26 +674,136 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
 
             // 2. Prepare the market order
-            Order order = new Order();
-            order.OrderID = orderID;
-            order.Cross = cross;
-            order.Side = side;
-            order.Quantity = quantity;
+            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
             order.Type = MARKET;
-            order.TimeInForce = tif;
-            order.Contract = GetContract(cross);
-            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
-            order.TransmitOrder = true;
-            order.ParentOrderID = parentId ?? 0;
-
-            order.LastAsk = lastAsk;
-            order.LastBid = lastBid;
-            order.LastMid = lastMid;
 
             // 3. Add the order to the placement queue
             logger.Debug($"Queuing MARKET order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            return PlaceOrder(order);
+            PlaceOrder(order, ct);
+
+            return orderID;
+        }
+
+        public async Task<int> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
+        {
+            if (!ibClient.IsConnected())
+            {
+                logger.Error("Cannot place TRAILING_MARKET_IF_TOUCHED order as the IB client is not connected");
+
+                return -1;
+            }
+
+            // If no custom cancellation token is specified we default to the program-level stop requested token
+            if (ct == null)
+                ct = this.stopRequestedCt;
+
+            if (ct.IsCancellationRequested)
+            {
+                logger.Error("Not placing order: operation cancelled");
+                return -1;
+            }
+
+            logger.Info($"Preparing TRAILING_MARKET_IF_TOUCHED order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
+
+            // 1. Get the next valid ID
+            int orderID = await GetNextValidOrderID(ct);
+
+            if (orderID < 0)
+            {
+                logger.Error("Not placing order: failed to get the next valid order ID");
+                return -1;
+            }
+
+            // 2. Prepare the order
+            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            order.Type = TRAILING_MARKET_IF_TOUCHED;
+            order.TrailingAmount = trailingAmount;
+
+            // 3. Add the order to the placement queue
+            logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+            PlaceOrder(order, ct);
+
+            return orderID;
+        }
+
+        public async Task<int> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
+        {
+            if (!ibClient.IsConnected())
+            {
+                logger.Error("Cannot place TRAILING_STOP order as the IB client is not connected");
+
+                return -1;
+            }
+
+            // If no custom cancellation token is specified we default to the program-level stop requested token
+            if (ct == null)
+                ct = this.stopRequestedCt;
+
+            if (ct.IsCancellationRequested)
+            {
+                logger.Error("Not placing order: operation cancelled");
+                return -1;
+            }
+
+            logger.Info($"Preparing TRAILING_STOP order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
+
+            // 1. Get the next valid ID
+            int orderID = await GetNextValidOrderID(ct);
+
+            if (orderID < 0)
+            {
+                logger.Error("Not placing order: failed to get the next valid order ID");
+                return -1;
+            }
+
+            // 2. Prepare the order
+            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            order.Type = TRAILING_STOP;
+            order.TrailingAmount = trailingAmount;
+
+            // 3. Add the order to the placement queue
+            logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+            PlaceOrder(order, ct);
+
+            return orderID;
+        }
+
+        private void PlaceOrder(Order order, CancellationToken ct)
+        {
+            logger.Info($"Adding order {order.OrderID} to the list");
+            orders.TryAdd(order.OrderID, order);
+
+            logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
+            ordersToPlaceQueue.Enqueue(order);
+        }
+
+        public bool CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
+        {
+            if (!ibClient.IsConnected())
+            {
+                logger.Error("Cannot cancel order as the IB client is not connected");
+
+                return false;
+            }
+
+            // If no custom cancellation token is specified we default to the program-level stop requested token
+            if (ct == null)
+                ct = this.stopRequestedCt;
+
+            if (ct.IsCancellationRequested)
+            {
+                logger.Error("Not cancelling order: operation cancelled");
+                return false;
+            }
+
+            logger.Warn($"Cancelling order {orderId}");
+
+            ordersToCancelQueue.Enqueue(orderId);
+
+            return true;
         }
 
         public async Task<bool> CancelAllOrders(IEnumerable<Cross> crosses, CancellationToken ct = default(CancellationToken))
@@ -915,7 +832,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             if (ordersToCancel.Count() > 0)
             {
-                logger.Warn($"Requesting cancel of all active {string.Format(", ", crosses)} orders on IB: orders {string.Format(", ", ordersToCancel)}");
+                logger.Warn($"Requesting cancel of all active {string.Join(", ", crosses)} orders on IB: orders {string.Join(", ", ordersToCancel)}");
 
                 foreach (int orderId in ordersToCancel)
                 {
@@ -981,71 +898,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private void RequestOpenOrders()
-        {
-            ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
-        }
-
-        public async Task<int> PlaceMarketOrderWithContingentStop(Cross cross, OrderSide side, int quantity, TimeInForce tif, double stopPrice, string strategy, int? parentId = default(int?), double? lastBid = default(double?), double? lastMid = default(double?), double? lastAsk = default(double?), CancellationToken ct = default(CancellationToken))
-        {
-            if (!ibClient.IsConnected())
-            {
-                logger.Error("Cannot place MARKET order as the IB client is not connected");
-
-                return -1;
-            }
-
-            // If no custom cancellation token is specified we default to the program-level stop requested token
-            if (ct == null)
-                ct = this.stopRequestedCt;
-
-            if (ct.IsCancellationRequested)
-            {
-                logger.Error("Not placing order: operation cancelled");
-                return -1;
-            }
-
-            logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
-
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the market order
-            Order order = new Order();
-            order.OrderID = orderID;
-            order.Cross = cross;
-            order.Side = side;
-            order.Quantity = quantity;
-            order.Type = MARKET;
-            order.TimeInForce = tif;
-            order.Contract = GetContract(cross);
-            order.OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}";
-            order.TransmitOrder = true;
-            order.ParentOrderID = parentId ?? 0;
-
-            order.LastAsk = lastAsk;
-            order.LastBid = lastBid;
-            order.LastMid = lastMid;
-
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing MARKET order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
-
-            if (PlaceOrder(order) > -1)
-            {
-                // 4. Place the contingent stop order
-                return await PlaceStopOrder(cross, side == BUY ? SELL : BUY, quantity, stopPrice, TimeInForce.DAY, strategy, orderID, lastBid, lastMid, lastAsk, ct);
-            }
-            else
-                return -1;
-        }
-
-        public async Task<int> UpdateOrderLevel(int orderId, double newLevel, double? lastBid = null, double? lastMid = null, double? lastAsk = null, CancellationToken ct = default(CancellationToken))
+        public async Task<int> UpdateOrderLevel(int orderId, double newLevel, CancellationToken ct = default(CancellationToken))
         {
             logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
 
@@ -1060,44 +913,47 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 case LIMIT:
                     // 1. Place new order
-                    if (await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, lastBid, lastMid, lastAsk, ct) > -1)
+                    int newLimitOrderId = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, ct);
+
+                    if (newLimitOrderId > -1)
                     {
                         // 2. Cancel original order
-                        return CancelOrder(orderId, ct);
+                        if (CancelOrder(orderId, ct))
+                            logger.Info($"Successfully cancelled order {orderId}");
+                        else
+                            logger.Error($"Failed to cancel order {orderId}");
                     }
                     else
-                    {
                         logger.Error($"Failed to place new limit order. Not cancelling {orderId}");
-                        return -1;
-                    }
+
+                    return newLimitOrderId;
                 case STOP:
                     // 1. Place new order
-                    if (await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, lastBid, lastMid, lastAsk, ct) > -1)
+                    int newStopOrderId = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, ct);
+
+                    if (newStopOrderId > -1)
                     {
                         // 2. Cancel original order
-                        return CancelOrder(orderId, ct);
+                        if (CancelOrder(orderId, ct))
+                            logger.Info($"Successfully cancelled order {orderId}");
+                        else
+                            logger.Error($"Failed to cancel order {orderId}");
                     }
                     else
-                    {
-                        logger.Error($"Failed to place new limit order. Not cancelling {orderId}");
-                        return -1;
-                    }
+                        logger.Error($"Failed to place new stop order. Not cancelling {orderId}");
+
+                    return newStopOrderId;
                 default:
                     logger.Error($"Updating the level of orders of type {currentOrder.Type} is not supported");
                     return -1;
             }
         }
 
-        private class Request
+        public void Dispose()
         {
-            public int RequestId { get; set; }
-            public Order Order { get; set; }
+            logger.Info("Disposing IBOrderExecutor");
 
-            public Request(int requestId, Order order)
-            {
-                RequestId = requestId;
-                Order = order;
-            }
+            ibClient.ResponseManager.OrderStatusChangeReceived -= ResponseManager_OrderStatusChangeReceived;
         }
 
         private class ContractCrossEqualityComparer : IEqualityComparer<Contract>
