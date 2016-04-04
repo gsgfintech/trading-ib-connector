@@ -257,13 +257,26 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 return oldValue;
             });
+        }
 
-            HandleOrderUpdate(order).Wait();
+        private void SendError(string subject, string body)
+        {
+            brokerClient.OnAlert(new Alert(AlertLevel.ERROR, nameof(IBOrderExecutor), subject, body));
         }
 
         private void ResponseManager_OrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
         {
             logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
+
+            if (permId == 0)
+            {
+                string err = $"Order {orderId} has a permanent ID of 0. This is unexpected. Not processing order update";
+                logger.Error(err);
+
+                SendError("Order with invalid permanent ID", err);
+
+                return;
+            }
 
             //IB will usually not send an update PreSubmitted => Submitted
             if (status == PreSubmitted)
@@ -347,21 +360,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return oldValue;
             });
 
-            HandleOrderUpdate(order).Wait();
-        }
+            logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
+            mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
 
-        private async Task HandleOrderUpdate(Order order)
-        {
-            if (order.PermanentID > 0)
-            {
-                logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
-                await mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt);
-
-                brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
-                OrderUpdated?.Invoke(order);
-            }
-            else
-                logger.Error($"Order {order.OrderID} has a permanent ID of 0. This is unexpected");
+            brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
+            OrderUpdated?.Invoke(order);
         }
 
         private void RequestOpenOrders()
