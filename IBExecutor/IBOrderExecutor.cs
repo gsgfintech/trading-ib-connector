@@ -11,7 +11,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
@@ -50,6 +49,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         // Order queueus
         private ConcurrentQueue<Order> ordersToPlaceQueue = new ConcurrentQueue<Order>();
         private ConcurrentQueue<int> ordersToCancelQueue = new ConcurrentQueue<int>();
+        private ConcurrentDictionary<int, DateTime> ordersAwaitingPlaceConfirmation = new ConcurrentDictionary<int, DateTime>();
+        private Timer ordersAwaitingPlaceConfirmationTimer = null;
 
         private async Task<int> GetNextValidOrderID(CancellationToken stopRequestedCt)
         {
@@ -176,6 +177,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             this.mongoDBServer = mongoDBServer;
             this.convertServiceConnector = convertServiceConnector;
             this.mdConnector = mdConnector;
+
+            ordersAwaitingPlaceConfirmationTimer = new Timer(OrdersAwaitingPlaceConfirmationCb, null, 5500, 2000);
         }
 
         internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, CancellationToken stopRequestedCt)
@@ -192,9 +195,37 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return _instance;
         }
 
+        private void OrdersAwaitingPlaceConfirmationCb(object state)
+        {
+            Dictionary<int, DateTime> toCheck = ordersAwaitingPlaceConfirmation.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+            if (!toCheck.IsNullOrEmpty())
+            {
+                foreach (var kvp in toCheck)
+                {
+                    if (DateTime.Now.Subtract(kvp.Value) > TimeSpan.FromSeconds(2))
+                    {
+                        string err = $"Order {kvp.Key} has been awaiting confirmation for more than 2 seconds ({kvp.Value}). Requesting to cancel it and mark it as such";
+                        logger.Error(err);
+
+                        DateTime discarded;
+                        if (ordersAwaitingPlaceConfirmation.TryRemove(kvp.Key, out discarded))
+                        {
+                            SendError($"Unconfirmed order {kvp.Key}", err);
+                            CancelOrder(kvp.Key);
+
+                            ResponseManager_OrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 2 seconds");
+                        }
+                    }
+                }
+            }
+        }
+
         private void ResponseManager_OpenOrdersReceived(int orderId, Contract contract, Order order, OrderState orderState)
         {
             logger.Info($"Received notification of open order: {orderId}");
+
+            RemoveOrderFromAwatingConfirmationList(orderId);
 
             OrderStatusCode status = OrderStatusCodeUtils.GetFromStrCode(orderState?.Status);
 
@@ -259,6 +290,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             });
         }
 
+        private void RemoveOrderFromAwatingConfirmationList(int orderId)
+        {
+            DateTime timestamp;
+            if (ordersAwaitingPlaceConfirmation.TryRemove(orderId, out timestamp))
+            {
+                TimeSpan duration = DateTime.Now.Subtract(timestamp);
+                logger.Debug($"Removed order {orderId} from the ordersAwaitingPlaceConfirmation list. Confirmation took {duration.TotalMilliseconds}ms");
+            }
+        }
+
         private void SendError(string subject, string body)
         {
             brokerClient.OnAlert(new Alert(AlertLevel.ERROR, nameof(IBOrderExecutor), subject, body));
@@ -277,6 +318,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 return;
             }
+
+            RemoveOrderFromAwatingConfirmationList(orderId);
 
             //IB will usually not send an update PreSubmitted => Submitted
             if (status == PreSubmitted)
@@ -400,8 +443,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             {
                                 logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.OrderID}");
 
-                                logger.Info($"Placing order {order.OrderID}: {order}");
+                                logger.Info($"Placing order {order.OrderID}: {order} (contract is null: {order.Contract == null})");
                                 ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, order.Contract, order);
+
+                                logger.Debug($"Adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
+                                ordersAwaitingPlaceConfirmation.TryAdd(order.OrderID, DateTime.Now);
                             }
                         }
 
@@ -955,6 +1001,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public void Dispose()
         {
             logger.Info("Disposing IBOrderExecutor");
+
+            try { ordersAwaitingPlaceConfirmationTimer?.Dispose(); ordersAwaitingPlaceConfirmationTimer = null; } catch { }
 
             ibClient.ResponseManager.OrderStatusChangeReceived -= ResponseManager_OrderStatusChangeReceived;
         }
