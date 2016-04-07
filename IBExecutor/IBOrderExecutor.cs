@@ -225,7 +225,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Received notification of open order: {orderId}");
 
-            RemoveOrderFromAwatingConfirmationList(orderId);
+            RemoveOrderFromAwaitingConfirmationList(orderId);
 
             OrderStatusCode status = OrderStatusCodeUtils.GetFromStrCode(orderState?.Status);
 
@@ -290,7 +290,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             });
         }
 
-        private void RemoveOrderFromAwatingConfirmationList(int orderId)
+        private void RemoveOrderFromAwaitingConfirmationList(int orderId)
         {
             DateTime timestamp;
             if (ordersAwaitingPlaceConfirmation.TryRemove(orderId, out timestamp))
@@ -319,7 +319,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return;
             }
 
-            RemoveOrderFromAwatingConfirmationList(orderId);
+            RemoveOrderFromAwaitingConfirmationList(orderId);
 
             //IB will usually not send an update PreSubmitted => Submitted
             if (status == PreSubmitted)
