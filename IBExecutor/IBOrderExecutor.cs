@@ -375,7 +375,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"Received update notification for order {orderId} ({status})");
 
-                oldValue.PermanentID = permId;
+                if (permId > 0)
+                    oldValue.PermanentID = permId;
 
                 if (status.HasValue)
                 {
@@ -393,8 +394,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return oldValue;
             });
 
-            logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
-            mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
+            if (order.PermanentID > 0)
+            {
+                logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
+                mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
+            }
+            else
+            {
+                string err = $"Unable to add/update order {order.OrderID} in database: the permanent ID is invalid ({order.PermanentID})";
+                logger.Error(err);
+                SendError($"Unable to add/update order {order.OrderID}", err);
+            }
 
             brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
             OrderUpdated?.Invoke(order);
