@@ -48,89 +48,79 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         // Order queueus
         private ConcurrentQueue<Order> ordersToPlaceQueue = new ConcurrentQueue<Order>();
+        private object ordersToPlaceQueueLocker = new object();
+        private List<int> ordersPlaced = new List<int>();
         private ConcurrentQueue<int> ordersToCancelQueue = new ConcurrentQueue<int>();
+        private List<int> ordersCancelled = new List<int>();
         private ConcurrentDictionary<int, DateTime> ordersAwaitingPlaceConfirmation = new ConcurrentDictionary<int, DateTime>();
         private Timer ordersAwaitingPlaceConfirmationTimer = null;
 
-        private async Task<int> GetNextValidOrderID(CancellationToken stopRequestedCt)
+        internal async Task RequestNextValidOrderID()
         {
-            if (nextValidOrderId < 0)
+            CancellationTokenSource internalCts = new CancellationTokenSource();
+            internalCts.CancelAfter(TimeSpan.FromSeconds(3)); // Shouldn't take more than 3 seconds for IB to send us the next valid order ID
+
+            if (!nextValidOrderIdRequested)
             {
-                CancellationTokenSource internalCts = new CancellationTokenSource();
-                internalCts.CancelAfter(TimeSpan.FromSeconds(3)); // Shouldn't take more than 3 seconds for IB to send us the next valid order ID
-
-                if (!nextValidOrderIdRequested)
+                lock (nextValidOrderIdRequestedLocker)
                 {
-                    lock (nextValidOrderIdRequestedLocker)
-                    {
-                        nextValidOrderIdRequested = true;
-                    }
+                    nextValidOrderIdRequested = true;
+                }
 
-                    logger.Debug($"Requesting next valid order ID from IB for first time initialization");
+                logger.Debug($"Requesting next valid order ID from IB for first time initialization");
 
-                    Stopwatch sw = new Stopwatch();
-                    sw.Start();
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
 
-                    int nextId = await ibClient.RequestManager.OrdersRequestManager.GetNextValidOrderID(internalCts.Token);
+                int nextId = await ibClient.RequestManager.OrdersRequestManager.GetNextValidOrderID(internalCts.Token);
 
-                    sw.Stop();
+                sw.Stop();
 
-                    if (nextId > 0)
-                    {
-                        logger.Debug($"Received next valid order ID from IB after {sw.ElapsedMilliseconds}ms: {nextId}");
+                if (nextId > 0)
+                {
+                    logger.Debug($"Received next valid order ID from IB after {sw.ElapsedMilliseconds}ms: {nextId}. Will increase it to {nextId + 1} to be safe");
 
-                        lock (nextValidOrderIdLocker)
-                        {
-                            nextValidOrderId = nextId;
-                        }
-                    }
-                    else
-                    {
-                        logger.Fatal($"Failed to receive the next valid order ID from IB");
-                    }
+                    nextValidOrderId = nextId;
                 }
                 else
                 {
-                    logger.Debug("Flag nextValidOrderIdRequested is already set to true but nextValidOrderId is still -1. This suggests that the next valid order ID has been requested from IB but not received yet. Will wait");
-
-                    await Task.Run(() =>
-                    {
-                        try
-                        {
-                            while (nextValidOrderId < 0)
-                            {
-                                // Check the local timeout
-                                internalCts.Token.ThrowIfCancellationRequested();
-
-                                // Check the program timeout
-                                stopRequestedCt.ThrowIfCancellationRequested();
-
-                                Task.Delay(TimeSpan.FromMilliseconds(500)).Wait();
-                            }
-
-                            // It's been received, now we need to increment it
-                            lock (nextValidOrderIdLocker)
-                            {
-                                nextValidOrderId++;
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            logger.Debug("Cancelling next valid order ID waiting loop");
-                        }
-                    }, internalCts.Token);
+                    logger.Fatal($"Failed to receive the next valid order ID from IB");
                 }
             }
             else
             {
-                lock (nextValidOrderIdLocker)
+                logger.Debug("Flag nextValidOrderIdRequested is already set to true but nextValidOrderId is still -1. This suggests that the next valid order ID has been requested from IB but not received yet. Will wait");
+
+                await Task.Run(() =>
                 {
-                    nextValidOrderId++;
-                }
+                    try
+                    {
+                        while (nextValidOrderId < 0)
+                        {
+                            // Check the local timeout
+                            internalCts.Token.ThrowIfCancellationRequested();
 
-                logger.Debug($"Next valid order ID was increased to {nextValidOrderId}");
+                            // Check the program timeout
+                            stopRequestedCt.ThrowIfCancellationRequested();
+
+                            Task.Delay(TimeSpan.FromMilliseconds(500)).Wait();
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        logger.Debug("Cancelling next valid order ID waiting loop");
+                    }
+                }, internalCts.Token);
             }
+        }
 
+        private int GetNextValidOrderID()
+        {
+            if (nextValidOrderId < 0)
+                RequestNextValidOrderID().Wait();
+
+            nextValidOrderId++;
+            logger.Debug($"NextValidOrderId was incremented to {nextValidOrderId}");
             return nextValidOrderId;
         }
 
@@ -203,9 +193,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 foreach (var kvp in toCheck)
                 {
-                    if (DateTime.Now.Subtract(kvp.Value) > TimeSpan.FromSeconds(2))
+                    if (DateTime.Now.Subtract(kvp.Value) > TimeSpan.FromSeconds(30))
                     {
-                        string err = $"Order {kvp.Key} has been awaiting confirmation for more than 2 seconds ({kvp.Value}). Requesting to cancel it and mark it as such";
+                        string err = $"Order {kvp.Key} has been awaiting confirmation for more than 30 seconds ({kvp.Value}). Requesting to cancel it and mark it as such";
                         logger.Error(err);
 
                         DateTime discarded;
@@ -214,7 +204,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             SendError($"Unconfirmed order {kvp.Key}", err);
                             CancelOrder(kvp.Key);
 
-                            ResponseManager_OrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 2 seconds");
+                            ResponseManager_OrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
                         }
                     }
                 }
@@ -431,7 +421,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         {
                             // Give it a 5 seconds grace period to drain its queue
                             localCts = new CancellationTokenSource();
-                            localCts.CancelAfter(TimeSpan.FromSeconds(5));
+                            localCts.CancelAfter(TimeSpan.FromSeconds(10));
                         }
 
                         while (!ordersToPlaceQueue.IsEmpty)
@@ -441,20 +431,30 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             Order order;
                             if (ordersToPlaceQueue.TryDequeue(out order))
                             {
-                                logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.OrderID}");
+                                if (!ordersPlaced.Contains(order.OrderID))
+                                {
+                                    logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.OrderID}");
 
-                                logger.Info($"Placing order {order.OrderID}: {order} (contract is null: {order.Contract == null})");
-                                ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, order.Contract, order);
+                                    logger.Info($"Placing order {order.OrderID}: {order} (contract is null: {order.Contract == null})");
+                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, order.Contract, order);
 
-                                logger.Debug($"Adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
-                                ordersAwaitingPlaceConfirmation.TryAdd(order.OrderID, DateTime.Now);
+                                    logger.Debug($"Adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
+                                    ordersAwaitingPlaceConfirmation.TryAdd(order.OrderID, DateTime.Now);
+
+                                    ordersPlaced.Add(order.OrderID);
+
+                                    // Random delay in between orders
+                                    Thread.Sleep((new Random()).Next(500, 1500));
+                                }
+                                else
+                                    logger.Error($"Not trying to place order {order.OrderID} again");
                             }
                         }
 
                         if (loopCounter++ % 10 == 0)
                             logger.Debug($"OrdersPlacingQueue loop: {loopCounter}");
 
-                        Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+                        Thread.Sleep(TimeSpan.FromSeconds(1));
                     }
                 }
                 catch (OperationCanceledException)
@@ -490,9 +490,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             int orderId;
                             if (ordersToCancelQueue.TryDequeue(out orderId))
                             {
-                                logger.Debug($"OrdersPlacingQueue loop: dequeuing {orderId}");
+                                if (!ordersCancelled.Contains(orderId))
+                                {
+                                    logger.Debug($"OrdersCancellingQueue loop: dequeuing {orderId}");
 
-                                ibClient.RequestManager.OrdersRequestManager.RequestCancelOrder(orderId);
+                                    ibClient.RequestManager.OrdersRequestManager.RequestCancelOrder(orderId);
+
+                                    ordersCancelled.Add(orderId);
+
+                                    Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+                                }
+                                else
+                                    logger.Error($"Not cancelling order {orderId} again");
                             }
                         }
 
@@ -556,13 +565,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private async Task<Order> CreateOrder(int orderId, Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId)
+        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId)
         {
             RTBar latest = await mdConnector.GetLatest(cross, stopRequestedCt);
 
             Order order = new Order()
             {
-                OrderID = orderId,
                 Cross = cross,
                 Side = side,
                 Quantity = quantity,
@@ -596,7 +604,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 double commission = Math.Max(min, CrossUtils.GetPipValue(cross) * bps * order.UsdQuantity.Value);
 
-                logger.Debug($"Estimated USD commission for order {orderId} = Math.Max({min}, {CrossUtils.GetPipValue(cross)} * {bps} * {order.UsdQuantity}) = {commission}");
+                logger.Debug($"Estimated USD commission for order = Math.Max({min}, {CrossUtils.GetPipValue(cross)} * {bps} * {order.UsdQuantity}) = {commission}");
 
                 order.EstimatedCommission = commission;
                 order.EstimatedCommissionCcy = USD;
@@ -627,26 +635,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             logger.Info($"Preparing LIMIT order: {side} {quantity} {cross} @ {limitPrice} (TIF: {tif})");
 
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the limit order
-            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            // 1. Prepare the limit order
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId);
             order.Type = LIMIT;
             order.LimitPrice = limitPrice;
 
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing LIMIT order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            // 2. Add the order to the placement queue
+            logger.Debug($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            PlaceOrder(order, ct);
-
-            return orderID;
+            return PlaceOrder(order);
         }
 
         public async Task<int> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
@@ -670,26 +667,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             logger.Info($"Preparing STOP order: {side} {quantity} {cross} @ {stopPrice} (TIF: {tif})");
 
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the limit order
-            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            // 1. Prepare the limit order
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId);
             order.Type = STOP;
             order.StopPrice = stopPrice;
 
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            // 2. Add the order to the placement queue
+            logger.Debug($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            PlaceOrder(order, ct);
-
-            return orderID;
+            return PlaceOrder(order);
         }
 
         public async Task<int> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
@@ -713,25 +699,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
 
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the market order
-            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            // 1. Prepare the market order
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId);
             order.Type = MARKET;
 
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing MARKET order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            // 2. Add the order to the placement queue
+            logger.Debug($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            PlaceOrder(order, ct);
-
-            return orderID;
+            return PlaceOrder(order);
         }
 
         public async Task<int> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
@@ -755,26 +730,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             logger.Info($"Preparing TRAILING_MARKET_IF_TOUCHED order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
 
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the order
-            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            // 1. Prepare the order
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId);
             order.Type = TRAILING_MARKET_IF_TOUCHED;
             order.TrailingAmount = trailingAmount;
 
-            // 3. Add the order to the placement queue
-            logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            // 2. Add the order to the placement queue
+            logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            PlaceOrder(order, ct);
-
-            return orderID;
+            return PlaceOrder(order);
         }
 
         public async Task<int> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, CancellationToken ct = default(CancellationToken))
@@ -798,35 +762,39 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             logger.Info($"Preparing TRAILING_STOP order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
 
-            // 1. Get the next valid ID
-            int orderID = await GetNextValidOrderID(ct);
-
-            if (orderID < 0)
-            {
-                logger.Error("Not placing order: failed to get the next valid order ID");
-                return -1;
-            }
-
-            // 2. Prepare the order
-            Order order = await CreateOrder(orderID, cross, side, quantity, tif, strategy, parentId);
+            // 1. Prepare the order
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId);
             order.Type = TRAILING_STOP;
             order.TrailingAmount = trailingAmount;
 
-            // 3. Add the order to the placement queue
+            // 2. Add the order to the placement queue
             logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            PlaceOrder(order, ct);
-
-            return orderID;
+            return PlaceOrder(order);
         }
 
-        private void PlaceOrder(Order order, CancellationToken ct)
+        private int PlaceOrder(Order order)
         {
-            logger.Info($"Adding order {order.OrderID} to the list");
-            orders.TryAdd(order.OrderID, order);
+            lock (ordersToPlaceQueueLocker)
+            {
+                int orderID = GetNextValidOrderID();
 
-            logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
-            ordersToPlaceQueue.Enqueue(order);
+                if (orderID < 0)
+                {
+                    logger.Error("Not placing order: failed to get the next valid order ID");
+                    return -1;
+                }
+
+                order.OrderID = orderID;
+
+                logger.Info($"Adding order {order.OrderID} to the list");
+                orders.TryAdd(order.OrderID, order);
+
+                logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
+                ordersToPlaceQueue.Enqueue(order);
+
+                return orderID;
+            }
         }
 
         public bool CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))

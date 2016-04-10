@@ -44,6 +44,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             RequestManager = new IBClientRequestsManager();
 
             ResponseManager = RequestManager.GetResponseManager();
+            ResponseManager.ErrorMessageReceived += ResponseManager_ErrorMessageReceived;
 
             logger.Info($"Attempting first connection of {ToString()}");
             Task<bool> initialConnectTask = Task.Run<bool>(() =>
@@ -134,8 +135,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             }
             else if (apiErrorsToIgnore.Contains(apiError.ErrorMessage))
                 return;
-            else
-                APIErrorReceived?.Invoke(apiError);
+
+            APIErrorReceived?.Invoke(apiError);
         }
 
         private void Disconnect()

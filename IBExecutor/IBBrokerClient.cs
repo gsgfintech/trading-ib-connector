@@ -176,7 +176,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private void IbClient_APIErrorReceived(APIError error)
+        private async void IbClient_APIErrorReceived(APIError error)
         {
             if (error != null)
             {
@@ -200,6 +200,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         // Specific handlers
                         case 100:
                             AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Max rate of msg/second exceeded", error.ErrorMessage));
+                            break;
+                        case 103:
+                            AlertReceived?.Invoke(new Alert(AlertLevel.WARNING, clientName, "Duplicate order ID", error.ErrorMessage));
+                            logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
+                            await orderExecutor.RequestNextValidOrderID();
+                            break;
+                        case 110:
+                            AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Order Rejected", error.ErrorMessage));
                             break;
                         // Generic handler, for errors only
                         default:
