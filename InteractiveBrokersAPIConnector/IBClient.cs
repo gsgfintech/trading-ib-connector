@@ -149,13 +149,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
                 return;
 
             // Set error code
-            if (ibApiErrorCodesDict.ContainsKey(apiError.ErrorCodeInt))
+            if (ibApiErrorCodesDict.ContainsKey(apiError.ErrorCode))
             {
-                apiError.ErrorCode = ibApiErrorCodesDict[apiError.ErrorCodeInt];
-                logger.Debug($"Setup ErrorCode object for apiError: {apiError.ErrorCode} {apiError.ErrorCode.Description}");
+                apiError.ErrorCodeDescription = ibApiErrorCodesDict[apiError.ErrorCode].Description;
+                apiError.Level = ibApiErrorCodesDict[apiError.ErrorCode].Level;
+                logger.Debug($"Setup ErrorCodeDescription and level for apiError: {apiError.Level} {apiError.ErrorCodeDescription}");
             }
             else
-                logger.Warn($"Unable to set IB API Error Code from int error code {apiError.ErrorCodeInt}");
+                logger.Warn($"Unable to set IB API Error Code from int error code {apiError.ErrorCode}");
 
             APIErrorReceived?.Invoke(apiError);
         }

@@ -182,53 +182,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             if (error != null)
             {
-                if (error.ErrorMessage.Contains(" data farm connection is"))
+                logger.Error($"Received error message from IB: {error}");
+
+                // Additional action handlers for specific errors
+                switch (error.ErrorCode)
                 {
-                    if (error.ErrorMessage.Contains(" broken:"))
-                        AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Broken IB Market Data", error.ErrorMessage));
-                    else if (error.ErrorMessage.Contains(" OK:"))
-                        AlertReceived?.Invoke(new Alert(AlertLevel.INFO, clientName, "Resumed IB Market Data", error.ErrorMessage));
+                    case 103:
+                        logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
+                        await orderExecutor.RequestNextValidOrderID();
+                        break;
+                    default:
+                        break;
                 }
-                else if (error.ErrorMessage.Contains("Historical data request pacing violation"))
-                    AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Max rate of msg/second exceeded", error.ErrorMessage));
-                else if (error.ErrorCode != null)
-                {
-                    logger.Error($"Received error message from IB: [{error.ErrorCode.Level}] {error.ErrorMessage} (code: {error.ErrorCode.Code} - {error.ErrorCode.Description})");
 
-                    string subject = error.ErrorCode.Description;
-                    AlertLevel level = AlertLevel.ERROR;
-                    bool send = true;
-
-                    switch (error.ErrorCode.Code)
-                    {
-                        // Specific handlers
-                        case 100:
-                            subject = "Max rate of msg/second exceeded";
-                            break;
-                        case 103:
-                            subject = "Duplicate Order ID";
-                            level = AlertLevel.WARNING;
-                            logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
-                            await orderExecutor.RequestNextValidOrderID();
-                            break;
-                        case 110:
-                            subject = "Order Rejected";
-                            break;
-                        case 2100:
-                            subject = "Account Management";
-                            level = AlertLevel.INFO;
-                            break;
-                        // Generic handler, for errors only
-                        default:
-                            send = error.ErrorCode.Level == APIErrorCodeLevel.ERROR;
-                            break;
-                    }
-
-                    if (send)
-                        AlertReceived?.Invoke(new Alert(level, clientName, $"{subject} (request {error.RequestID})", error.ToString()));
-                }
-                else
-                    logger.Error($"Received unclassified error message from IB: {error.ErrorMessage}");
+                AlertReceived?.Invoke(new Alert(error.Level, clientName, $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})", error.ToString()));
             }
         }
 
