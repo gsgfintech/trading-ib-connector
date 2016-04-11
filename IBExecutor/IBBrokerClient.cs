@@ -182,7 +182,26 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             if (error != null)
             {
-                logger.Error($"Received error message from IB: {error}");
+                switch (error.Level)
+                {
+                    case AlertLevel.DEBUG:
+                        logger.Debug($"{clientName}: {error}");
+                        break;
+                    case AlertLevel.INFO:
+                        logger.Info($"{clientName}: {error}");
+                        break;
+                    case AlertLevel.WARNING:
+                        logger.Warn($"{clientName}: {error}");
+                        break;
+                    case AlertLevel.ERROR:
+                        logger.Error($"{clientName}: {error}");
+                        break;
+                    case AlertLevel.FATAL:
+                        logger.Fatal($"{clientName}: {error}");
+                        break;
+                    default:
+                        break;
+                }
 
                 // Additional action handlers for specific errors
                 switch (error.ErrorCode)
