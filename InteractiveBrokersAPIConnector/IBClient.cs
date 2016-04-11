@@ -1,6 +1,8 @@
 ﻿using log4net;
 using Net.Teirlinck.FX.Data;
+using Net.Teirlinck.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -33,13 +35,23 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 
         private string[] apiErrorsToIgnore = new string[] { "Already Connected", "Not connected" };
 
-        public IBClient(int clientID, string clientName, string ibHost, int ibPort, CancellationToken stopRequestedCt)
+        private Dictionary<int, APIErrorCode> ibApiErrorCodesDict = null;
+
+        public IBClient(int clientID, string clientName, string ibHost, int ibPort, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
         {
             ClientID = clientID;
             ClientName = clientName;
 
             IBHost = ibHost;
             IBPort = ibPort;
+
+            if (!ibApiErrorCodes.IsNullOrEmpty())
+                ibApiErrorCodesDict = ibApiErrorCodes.ToDictionary(code => code.Code, code => code);
+            else
+            {
+                logger.Error("Not setting up IB API error codes dictionary");
+                ibApiErrorCodesDict = new Dictionary<int, APIErrorCode>();
+            }
 
             RequestManager = new IBClientRequestsManager();
 
@@ -135,6 +147,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             }
             else if (apiErrorsToIgnore.Contains(apiError.ErrorMessage))
                 return;
+
+            // Set error code
+            if (ibApiErrorCodesDict.ContainsKey(apiError.ErrorCodeInt))
+            {
+                apiError.ErrorCode = ibApiErrorCodesDict[apiError.ErrorCodeInt];
+                logger.Debug($"Setup ErrorCode object for apiError: {apiError.ErrorCode} {apiError.ErrorCode.Description}");
+            }
+            else
+                logger.Warn($"Unable to set IB API Error Code from int error code {apiError.ErrorCodeInt}");
 
             APIErrorReceived?.Invoke(apiError);
         }

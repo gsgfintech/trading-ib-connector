@@ -63,7 +63,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         Timer statusUpdateTimer = null;
 
-        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, CancellationToken stopRequestedCt)
+        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
         {
             this.brokerClientType = clientType;
             this.clientName = clientName;
@@ -71,7 +71,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             Status = new SystemStatus(clientName);
 
-            ibClient = new IBClient(clientID, clientName, socketHost, socketPort, stopRequestedCt);
+            ibClient = new IBClient(clientID, clientName, socketHost, socketPort, ibApiErrorCodes, stopRequestedCt);
             ibClient.APIErrorReceived += IbClient_APIErrorReceived;
             ibClient.IBConnectionEstablished += () => UpdateStatus(IsConnectedKey, true, GREEN);
             ibClient.IBConnectionLost += () => UpdateStatus(IsConnectedKey, false, RED);
@@ -146,7 +146,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"IBPort: {port}");
             logger.Info($"TradingAccount: {tradingAccount}");
 
-            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, stopRequestedCt);
+            List<APIErrorCode> ibApiErrorCodes = await mongoDBServer.APIErrorCodeActioner.GetAll(stopRequestedCt);
+
+            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibApiErrorCodes, stopRequestedCt);
 
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
@@ -189,32 +191,41 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else if (error.ErrorMessage.Contains("Historical data request pacing violation"))
                     AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Max rate of msg/second exceeded", error.ErrorMessage));
-                else if (error.ErrorMessage.Contains("API client has been unsubscribed from account data"))
-                    AlertReceived?.Invoke(new Alert(AlertLevel.INFO, clientName, "Account Management", "Unsubscribed from IB account updates"));
                 else if (error.ErrorCode != null)
                 {
                     logger.Error($"Received error message from IB: [{error.ErrorCode.Level}] {error.ErrorMessage} (code: {error.ErrorCode.Code} - {error.ErrorCode.Description})");
+
+                    string subject = error.ErrorCode.Description;
+                    AlertLevel level = AlertLevel.ERROR;
+                    bool send = true;
 
                     switch (error.ErrorCode.Code)
                     {
                         // Specific handlers
                         case 100:
-                            AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Max rate of msg/second exceeded", error.ErrorMessage));
+                            subject = "Max rate of msg/second exceeded";
                             break;
                         case 103:
-                            AlertReceived?.Invoke(new Alert(AlertLevel.WARNING, clientName, "Duplicate order ID", error.ErrorMessage));
+                            subject = "Duplicate Order ID";
+                            level = AlertLevel.WARNING;
                             logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
                             await orderExecutor.RequestNextValidOrderID();
                             break;
                         case 110:
-                            AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, "Order Rejected", error.ErrorMessage));
+                            subject = "Order Rejected";
+                            break;
+                        case 2100:
+                            subject = "Account Management";
+                            level = AlertLevel.INFO;
                             break;
                         // Generic handler, for errors only
                         default:
-                            if (error.ErrorCode.Level == APIErrorCodeLevel.ERROR)
-                                AlertReceived?.Invoke(new Alert(AlertLevel.ERROR, clientName, error.ErrorCode.Description, error.ErrorMessage));
+                            send = error.ErrorCode.Level == APIErrorCodeLevel.ERROR;
                             break;
                     }
+
+                    if (send)
+                        AlertReceived?.Invoke(new Alert(level, clientName, $"{subject} (request {error.RequestID})", error.ToString()));
                 }
                 else
                     logger.Error($"Received unclassified error message from IB: {error.ErrorMessage}");
