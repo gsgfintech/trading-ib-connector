@@ -153,6 +153,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             {
                 apiError.ErrorCodeDescription = ibApiErrorCodesDict[apiError.ErrorCode].Description;
                 apiError.Level = ibApiErrorCodesDict[apiError.ErrorCode].Level;
+                apiError.RelayToMonitoringInterface = ibApiErrorCodesDict[apiError.ErrorCode].RelayToMonitoringInterface;
             }
             else
                 logger.Warn($"Unable to set IB API Error Code from int error code {apiError.ErrorCode}");

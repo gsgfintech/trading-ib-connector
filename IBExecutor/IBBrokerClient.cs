@@ -182,26 +182,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             if (error != null)
             {
-                switch (error.Level)
-                {
-                    case AlertLevel.DEBUG:
-                        logger.Debug($"{clientName}: {error}");
-                        break;
-                    case AlertLevel.INFO:
-                        logger.Info($"{clientName}: {error}");
-                        break;
-                    case AlertLevel.WARNING:
-                        logger.Warn($"{clientName}: {error}");
-                        break;
-                    case AlertLevel.ERROR:
-                        logger.Error($"{clientName}: {error}");
-                        break;
-                    case AlertLevel.FATAL:
-                        logger.Fatal($"{clientName}: {error}");
-                        break;
-                    default:
-                        break;
-                }
+                string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})";
+                string body = error.ToString();
 
                 // Additional action handlers for specific errors
                 switch (error.ErrorCode)
@@ -210,11 +192,43 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
                         await orderExecutor.RequestNextValidOrderID();
                         break;
+                    case 201:
+                        subject = $"Order {error.RequestID} was rejected";
+                        body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                        break;
+                    case 202:
+                        subject = $"Order {error.RequestID} was cancelled";
+                        body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                        break;
                     default:
                         break;
                 }
 
-                AlertReceived?.Invoke(new Alert(error.Level, clientName, $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})", error.ToString()));
+                switch (error.Level)
+                {
+                    case AlertLevel.DEBUG:
+                        logger.Debug($"{clientName}: {body}");
+                        break;
+                    case AlertLevel.INFO:
+                        logger.Info($"{clientName}: {body}");
+                        break;
+                    case AlertLevel.WARNING:
+                        logger.Warn($"{clientName}: {body}");
+                        break;
+                    case AlertLevel.ERROR:
+                        logger.Error($"{clientName}: {body}");
+                        break;
+                    case AlertLevel.FATAL:
+                        logger.Fatal($"{clientName}: {body}");
+                        break;
+                    default:
+                        break;
+                }
+
+                if (error.RelayToMonitoringInterface)
+                    AlertReceived?.Invoke(new Alert(error.Level, clientName, subject, body));
+                else
+                    logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");
             }
         }
 

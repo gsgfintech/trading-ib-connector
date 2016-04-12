@@ -1,5 +1,5 @@
 ﻿using Net.Teirlinck.FX.Data.ExecutionData;
-using System;
+using Net.Teirlinck.FX.Data.OrderData;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,12 +15,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                 return new IBApi.ExecutionFilter()
                 {
                     ClientId = apiExecFilter.ClientID,
-                    AcctCode = !String.IsNullOrEmpty(apiExecFilter.AccountCode) ? apiExecFilter.AccountCode : String.Empty,
+                    AcctCode = !string.IsNullOrEmpty(apiExecFilter.AccountCode) ? apiExecFilter.AccountCode : string.Empty,
                     Time = apiExecFilter.SinceTime.ToString("yyyyMMdd-hh:mm:ss"),
-                    Symbol = !String.IsNullOrEmpty(apiExecFilter.Symbol) ? apiExecFilter.Symbol : String.Empty,
-                    SecType = (apiExecFilter.SecurityType != null) ? apiExecFilter.SecurityType.Code : String.Empty,
-                    Exchange = !String.IsNullOrEmpty(apiExecFilter.Exchange) ? apiExecFilter.Exchange : String.Empty,
-                    Side = apiExecFilter.Side.ToString()
+                    Symbol = !string.IsNullOrEmpty(apiExecFilter.Symbol) ? apiExecFilter.Symbol : string.Empty,
+                    SecType = (apiExecFilter.SecurityType != null) ? apiExecFilter.SecurityType.Code : string.Empty,
+                    Exchange = !string.IsNullOrEmpty(apiExecFilter.Exchange) ? apiExecFilter.Exchange : string.Empty,
+                    Side = apiExecFilter.Side != OrderSide.UNKNOWN ? apiExecFilter.Side.ToString() : string.Empty
                 };
         }
 

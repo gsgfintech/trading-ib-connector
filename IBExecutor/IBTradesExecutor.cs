@@ -50,19 +50,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             IBClient = ibClient;
             IBClient.ResponseManager.ExecutionDetailsReceived += ResponseManager_ExecutionDetailsReceived;
             IBClient.ResponseManager.CommissionReportReceived += ResponseManager_CommissionReportReceived;
-            RequestTodaysExecutions();
 
             IBClient.IBConnectionEstablished += () =>
             {
                 logger.Info("IB client (re)connected. Will re-request today's executions");
-
-                RequestTodaysExecutions();
             };
-        }
-
-        private void RequestTodaysExecutions()
-        {
-            IBClient.RequestManager.ExecutionsRequestManager.RequestTodaysExecutions(1, new ExecutionFilter());
         }
 
         private async void ResponseManager_CommissionReportReceived(CommissionReport report)
