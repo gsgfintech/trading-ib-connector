@@ -185,12 +185,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})";
                 string body = error.ToString();
 
-                // Additional action handlers for specific errors
+                #region Additional action handlers for specific errors
                 switch (error.ErrorCode)
                 {
                     case 103:
                         logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
                         await orderExecutor.RequestNextValidOrderID();
+                        break;
+                    case 110:
+                        subject = $"Limit or stop price of order {error.RequestID} is invalid";
+                        body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}";
+                        break;
+                    case 135:
+                        subject = $"Order {error.RequestID} is not recognized by TWS";
+                        body = $"[{error.Level} {error.ErrorCode}] {subject}";
                         break;
                     case 201:
                         subject = $"Order {error.RequestID} was rejected";
@@ -203,6 +211,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     default:
                         break;
                 }
+                #endregion
 
                 switch (error.Level)
                 {
