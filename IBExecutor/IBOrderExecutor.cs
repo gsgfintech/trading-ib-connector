@@ -156,7 +156,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             this.ibClient = ibClient;
 
             this.ibClient.ResponseManager.OpenOrdersReceived += ResponseManager_OpenOrdersReceived;
-            this.ibClient.ResponseManager.OrderStatusChangeReceived += ResponseManager_OrderStatusChangeReceived;
+            this.ibClient.ResponseManager.OrderStatusChangeReceived += OnOrderStatusChangeReceived;
 
             this.ibClient.IBConnectionEstablished += () =>
             {
@@ -204,7 +204,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             SendError($"Unconfirmed order {kvp.Key}", err);
                             CancelOrder(kvp.Key);
 
-                            ResponseManager_OrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
+                            OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
                         }
                     }
                 }
@@ -295,7 +295,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             brokerClient.OnAlert(new Alert(AlertLevel.ERROR, nameof(IBOrderExecutor), subject, body));
         }
 
-        private void ResponseManager_OrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
+        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
         {
             logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
 
@@ -399,6 +399,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
                 mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
             }
+            else if (order.PermanentID == -1)
+                logger.Debug($"Not adding/updating order {order.OrderID} in database: its permanent ID is -1, which means that the order was marked as cancelled after failing at IB");
             else
             {
                 string err = $"Unable to add/update order {order.OrderID} in database: the permanent ID is invalid ({order.PermanentID})";
@@ -982,7 +984,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             try { ordersAwaitingPlaceConfirmationTimer?.Dispose(); ordersAwaitingPlaceConfirmationTimer = null; } catch { }
 
-            ibClient.ResponseManager.OrderStatusChangeReceived -= ResponseManager_OrderStatusChangeReceived;
+            ibClient.ResponseManager.OrderStatusChangeReceived -= OnOrderStatusChangeReceived;
         }
 
         private class ContractCrossEqualityComparer : IEqualityComparer<Contract>

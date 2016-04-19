@@ -12,6 +12,7 @@ using System.Linq;
 using Net.Teirlinck.Utils;
 using Capital.GSG.FX.FXConverterServiceConnector;
 using Capital.GSG.FX.MarketDataService.Connector;
+using Net.Teirlinck.FX.Data.OrderData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -198,7 +199,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         break;
                     case 135:
                         subject = $"Order {error.RequestID} is not recognized by TWS";
-                        body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                        body = $"[{error.Level} {error.ErrorCode}] {subject}. Marking it as cancelled";
+                        orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
                         break;
                     case 201:
                         subject = $"Order {error.RequestID} was rejected";
