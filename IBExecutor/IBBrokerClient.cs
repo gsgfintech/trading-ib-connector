@@ -75,7 +75,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public event Action StopComplete;
 
-        Timer statusUpdateTimer = null;
+        private Timer statusUpdateTimer = null;
+        private Timer twsRestartTimer = null;
+        private object twsRestartTimerLocker = new object();
 
         private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, string ibControllerServiceEndpoint, int ibControllerPort, string ibControllerAppName, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
         {
@@ -255,6 +257,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         subject = $"Order {error.RequestID} was cancelled";
                         body = $"[{error.Level} {error.ErrorCode}] {subject}";
                         break;
+                    case 2103:
+                    case 2105:
+                        // Market data connection lost
+                        StartTwsRestartTimer();
+                        break;
+                    case 2104:
+                    case 2106:
+                        // Market data connection resumed
+                        TerminateTwsRestartTimer();
+                        break;
                     default:
                         break;
                 }
@@ -285,6 +297,49 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     AlertReceived?.Invoke(new Alert(error.Level, clientName, subject, body));
                 else
                     logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");
+            }
+        }
+
+        private void StartTwsRestartTimer()
+        {
+            lock (twsRestartTimerLocker)
+            {
+                if (twsRestartTimer == null)
+                {
+                    logger.Warn("Market data connection was lost. Starting TwsRestartTimer");
+
+                    twsRestartTimer = new Timer(TwsRestartTimerCb, null, 5 * 60 * 1000, Timeout.Infinite);
+                }
+                else
+                    logger.Debug("TwsRestartTimer is already instanciated");
+            }
+        }
+
+        private async void TwsRestartTimerCb(object state)
+        {
+            string err = "Market data connection has been lost for 5 minutes. Will restart IB client";
+            logger.Error(err);
+
+            OnAlert(new Alert(AlertLevel.FATAL, clientName, "Restarting TWS", err));
+
+            if (await Restart())
+                logger.Info("Restarted IB client");
+            else
+                logger.Error("Failed to restart IB client");
+        }
+
+        private void TerminateTwsRestartTimer()
+        {
+            lock (twsRestartTimerLocker)
+            {
+                if (twsRestartTimer != null)
+                {
+                    logger.Info("Market data connection was re-established. Cancelling TwsRestartTimer");
+
+                    try { twsRestartTimer?.Dispose(); twsRestartTimer = null; } catch { }
+                }
+                else
+                    logger.Debug("twsRestartTimer is null. Nothing to terminate");
             }
         }
 
