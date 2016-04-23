@@ -13,6 +13,7 @@ using Net.Teirlinck.Utils;
 using Capital.GSG.FX.FXConverterServiceConnector;
 using Capital.GSG.FX.MarketDataService.Connector;
 using Net.Teirlinck.FX.Data.OrderData;
+using Capital.GSG.FX.IBControllerServiceConnector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -25,14 +26,26 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private const string ClientHostKey = "Host";
         private const string ClientPortKey = "Port";
         private const string ClientTradingAccountKey = "TradingAccount";
+        private const string IBControllerPortKey = "IBControllerPort";
+        private const string IBControllerServiceEndpointKey = "IBControllerServiceEndpoint";
+        private const string IBControllerServiceAppNameKey = "IBControllerServiceAppName";
         private const string IsConnectedKey = "IsConnected";
         private const string MessageKey = "Message";
         private const string StatusKey = "Status";
+        private const string SuccessKey = "Success";
 
         private static BrokerClient _instance;
 
         private readonly IBClient ibClient;
         private readonly string clientName;
+        private readonly CancellationToken stopRequestedCt;
+
+        private bool isStarted = true;
+        private object isStartedLocker = new object();
+
+        private readonly IBControllerConnector ibControllerConnector;
+        private readonly int ibControllerPort;
+        private readonly string ibControllerAppName;
 
         private readonly IBrokerClientType brokerClientType;
         public IBrokerClientType BrokerClientType { get { return brokerClientType; } }
@@ -64,11 +77,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         Timer statusUpdateTimer = null;
 
-        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
+        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, string ibControllerServiceEndpoint, int ibControllerPort, string ibControllerAppName, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
         {
             this.brokerClientType = clientType;
             this.clientName = clientName;
             this.tradingExecutorRunner = tradingExecutorRunner;
+
+            this.stopRequestedCt = stopRequestedCt;
+
+            this.ibControllerConnector = IBControllerConnector.GetConnector(ibControllerServiceEndpoint);
+            this.ibControllerPort = ibControllerPort;
+            this.ibControllerAppName = ibControllerAppName;
 
             Status = new SystemStatus(clientName);
 
@@ -125,6 +144,29 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 throw new ArgumentException($"Failed to parse config key {ClientPortKey} as int");
             #endregion
 
+            #region IBControllerServiceEndpoint
+            if (!clientConfig.ContainsKey(IBControllerServiceEndpointKey) || string.IsNullOrEmpty(clientConfig[IBControllerServiceEndpointKey]?.ToString()))
+                throw new ArgumentNullException(nameof(IBControllerServiceEndpointKey));
+
+            string ibControllerServiceEndpoint = clientConfig[IBControllerServiceEndpointKey].ToString();
+            #endregion
+
+            #region IBControllerServiceAppName
+            if (!clientConfig.ContainsKey(IBControllerServiceAppNameKey) || string.IsNullOrEmpty(clientConfig[IBControllerServiceAppNameKey]?.ToString()))
+                throw new ArgumentNullException(nameof(IBControllerServiceAppNameKey));
+
+            string ibControllerServiceAppName = clientConfig[IBControllerServiceAppNameKey].ToString();
+            #endregion
+
+            #region IBControllerPort
+            if (!clientConfig.ContainsKey(IBControllerPortKey))
+                throw new ArgumentNullException(nameof(IBControllerPortKey));
+
+            int ibControllerPort;
+            if (!int.TryParse(clientConfig[IBControllerPortKey]?.ToString(), out ibControllerPort))
+                throw new ArgumentException($"Failed to parse config key {IBControllerPortKey} as int");
+            #endregion
+
             #region ClientTradingAccountKey
             if (!clientConfig.ContainsKey(ClientTradingAccountKey))
                 throw new ArgumentNullException(nameof(ClientTradingAccountKey));
@@ -146,10 +188,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"IBHost: {host}");
             logger.Info($"IBPort: {port}");
             logger.Info($"TradingAccount: {tradingAccount}");
+            logger.Info($"IBControllerPort: {ibControllerPort}");
+            logger.Info($"IBControllerServiceEndpoint: {ibControllerServiceEndpoint}");
+            logger.Info($"IBControllerServiceAppName: {ibControllerServiceAppName}");
 
             List<APIErrorCode> ibApiErrorCodes = await mongoDBServer.APIErrorCodeActioner.GetAll(stopRequestedCt);
 
-            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibApiErrorCodes, stopRequestedCt);
+            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibControllerServiceEndpoint, ibControllerPort, ibControllerServiceAppName, ibApiErrorCodes, stopRequestedCt);
 
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
@@ -308,6 +353,93 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private void SendStatusUpdate()
         {
             StatusUpdated?.Invoke(Status);
+        }
+
+        public async Task<bool> Start()
+        {
+            if (!isStarted)
+            {
+                Dictionary<string, object> result = await ibControllerConnector.Start(ibControllerAppName, ibControllerPort, stopRequestedCt);
+
+                bool success;
+                if (result != null && result.ContainsKey(SuccessKey) && bool.TryParse(result[SuccessKey]?.ToString(), out success))
+                {
+                    string message = result.ContainsKey(MessageKey) ? result[MessageKey]?.ToString() : null;
+
+                    if (success)
+                    {
+                        lock (isStartedLocker)
+                        {
+                            isStarted = true;
+                        }
+
+                        logger.Info(message ?? "Successfully started IB client");
+                        return true;
+                    }
+                    else
+                    {
+                        logger.Error(message ?? "Failed to start IB client");
+                        return false;
+                    }
+                }
+                else
+                {
+                    logger.Error("Failed to start IB client. Unknown error");
+                    return false;
+                }
+            }
+            else
+            {
+                logger.Error("Unable to start IB client: already started");
+                return false;
+            }
+        }
+
+        public async Task<bool> Stop()
+        {
+            if (isStarted)
+            {
+                Dictionary<string, object> result = await ibControllerConnector.Stop(ibControllerPort, stopRequestedCt);
+
+                bool success;
+                if (result != null && result.ContainsKey(SuccessKey) && bool.TryParse(result[SuccessKey]?.ToString(), out success))
+                {
+                    string message = result.ContainsKey(MessageKey) ? result[MessageKey]?.ToString() : null;
+
+                    if (success)
+                    {
+                        lock (isStartedLocker)
+                        {
+                            isStarted = false;
+                        }
+
+                        logger.Info(message ?? "Successfully stopped IB client");
+                        return true;
+                    }
+                    else
+                    {
+                        logger.Error(message ?? "Failed to stop IB client");
+                        return false;
+                    }
+                }
+                else
+                {
+                    logger.Error("Failed to stop IB client. Unknown error");
+                    return false;
+                }
+            }
+            else
+            {
+                logger.Error("Unable to stop IB client: already stopped");
+                return false;
+            }
+        }
+
+        public async Task<bool> Restart()
+        {
+            logger.Info("Restarting IB client");
+
+            return await Stop() && await Start();
         }
     }
 }

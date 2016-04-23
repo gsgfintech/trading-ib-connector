@@ -54,6 +54,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 { "ClientNumber", 7 },
                 { "Host", "gsg-dev-1.gsg.capital" },
                 { "Port", 7497 },
+                { "IBControllerPort", 7463 },
+                { "IBControllerServiceEndpoint", "https://gsg-dev-1.gsg.capital:6583" },
+                { "IBControllerServiceAppName", "TwsPaper" },
                 { "TradingAccount", "DU215795" }
             };
 
@@ -152,7 +155,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Debug("Sleeping for 10 seconds");
                 Task.Delay(TimeSpan.FromSeconds(10)).Wait();
 
-                await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
+                //await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
+
+                //await RestartTws((BrokerClient)brokerClient);
 
                 Console.WriteLine("Press a key to exit");
                 Console.ReadLine();
@@ -167,6 +172,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Fatal("Caught fatal unhandled exception. The process will now exit", ex);
             }
+        }
+
+        private static async Task RestartTws(BrokerClient client)
+        {
+            if (await client.Restart())
+                logger.Info("Successfully shutdown TWS");
+            else
+                logger.Error("Failed to shutdown TWS");
         }
 
         private static async Task CancelAllOrdersAndClosePositions(IOrderExecutor executor)

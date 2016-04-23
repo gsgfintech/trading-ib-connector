@@ -35,12 +35,16 @@
       <HintPath>..\packages\Capital.GSG.FX.FXConverterServiceConnector.1.0.0.2\lib\net46\Capital.GSG.FX.FXConverterServiceConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Capital.GSG.FX.IBControllerServiceConnector, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.IBControllerServiceConnector.1.0.0.0\lib\net46\Capital.GSG.FX.IBControllerServiceConnector.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Capital.GSG.FX.MarketDataService.Connector, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.0.0.0\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.4.3.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.4.3.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.5.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.5.0.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="log4net, Version=1.2.15.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
