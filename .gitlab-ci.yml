@@ -2,4 +2,4 @@ build:
   stage: build
   script:
     - cmd.exe /C " "C:\Program Files (x86)\NuGet\nuget.exe" restore InteractiveBrokersAPIConnector.sln -source "https://tryphon.gsg.capital:9099/nuget/gsg" "
-    - cmd.exe /C " "C:\Program Files (x86)\MSBuild\14.0\bin\amd64\MSBuild.exe" TradeEngInteractiveBrokersAPIConnectorine.sln /p:Configuration=Release "
+    - cmd.exe /C " "C:\Program Files (x86)\MSBuild\14.0\bin\amd64\MSBuild.exe" InteractiveBrokersAPIConnector.sln /p:Configuration=Release "
