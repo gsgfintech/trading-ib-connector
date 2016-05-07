@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Capital.GSG.FX.FXConverterServiceConnector;
 using System.Threading;
+using Net.Teirlinck.FX.Data.OrderData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -108,6 +109,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
+        private void EnrichWithOrderData(ref Execution execution)
+        {
+            Order order = (brokerClient.OrderExecutor as IBOrderExecutor)?.GetOrder(execution.OrderId);
+
+            execution.OrderOrigin = order?.Origin ?? OrderOrigin.Unknown;
+        }
+
         private DateTime? GetPreviousExecutionTimeForCross(Cross cross)
         {
             return Trades?.LastOrDefault(exec => exec.Cross == cross)?.ExecutionTime;
@@ -124,6 +132,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Received new trade notification: {execution}");
 
             execution.Cross = contract.Cross;
+
+            EnrichWithOrderData(ref execution);
 
             TempExecution tmpExecution = tmpExecutions.GetOrAdd(execution.ExecutionId, new TempExecution() { Execution = execution });
 
