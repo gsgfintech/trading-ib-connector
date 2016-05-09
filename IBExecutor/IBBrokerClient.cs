@@ -237,6 +237,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 switch (error.ErrorCode)
                 {
                     case 103:
+                        subject = $"Duplicate order ID: {error.RequestID}";
                         logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
                         await orderExecutor.RequestNextValidOrderID();
                         break;
@@ -261,6 +262,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         subject = $"Order {error.RequestID} was cancelled";
                         body = $"[{error.Level} {error.ErrorCode}] {subject}";
                         break;
+                    case 1100:
+                    case 1102:
+                        subject = error.ErrorCodeDescription;
+                        break;
                     case 2103:
                     case 2105:
                         // Market data connection lost
@@ -269,6 +274,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     case 2104:
                     case 2106:
                         // Market data connection resumed
+                        subject = error.ErrorCodeDescription;
                         TerminateTwsRestartTimer();
                         break;
                     default:
