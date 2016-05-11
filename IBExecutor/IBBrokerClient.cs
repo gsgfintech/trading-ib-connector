@@ -68,6 +68,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private IBTradesExecutor tradesExecutor;
         public ITradesExecutor TradesExecutor { get { return tradesExecutor; } }
 
+        private readonly string monitoringEndpoint;
+
         private SystemStatus Status { get; set; }
         public event Action<SystemStatus> StatusUpdated;
 
@@ -79,11 +81,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, string ibControllerServiceEndpoint, int ibControllerPort, string ibControllerAppName, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
+        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, string ibControllerServiceEndpoint, int ibControllerPort, string ibControllerAppName, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
             this.brokerClientType = clientType;
             this.clientName = clientName;
             this.tradingExecutorRunner = tradingExecutorRunner;
+            this.monitoringEndpoint = monitoringEndpoint;
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -103,7 +106,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             statusUpdateTimer = new Timer(state => SendStatusUpdate(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
         }
 
-        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, CancellationToken stopRequestedCt, bool logTicks)
+        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks)
         {
             if (clientConfig == null)
                 throw new ArgumentNullException(nameof(clientConfig));
@@ -196,7 +199,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             List<APIErrorCode> ibApiErrorCodes = await mongoDBServer.APIErrorCodeActioner.GetAll(stopRequestedCt);
 
-            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibControllerServiceEndpoint, ibControllerPort, ibControllerServiceAppName, ibApiErrorCodes, stopRequestedCt);
+            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibControllerServiceEndpoint, ibControllerPort, ibControllerServiceAppName, ibApiErrorCodes, monitoringEndpoint, stopRequestedCt);
 
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
@@ -212,7 +215,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Setting up orders executor, positions executor and trades executor");
 
-                orderExecutor = await IBOrderExecutor.SetupOrderExecutor(this, ibClient, mongoDBServer, convertServiceConnector, mdConnector, stopRequestedCt);
+                orderExecutor = await IBOrderExecutor.SetupOrderExecutor(this, ibClient, mongoDBServer, convertServiceConnector, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
                 positionExecutor = IBPositionsExecutor.SetupIBPositionsExecutor(ibClient, tradingAccount, convertServiceConnector, stopRequestedCt);
                 tradesExecutor = new IBTradesExecutor(this, ibClient, convertServiceConnector, stopRequestedCt);
             }
@@ -253,6 +256,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     case 161:
                         subject = $"Order {error.RequestID} is not cancellable";
                         body = $"[{error.Level} {error.ErrorCode}] {error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}";
+                        orderExecutor.StopTradingStrategyForOrder(error.RequestID, $"{error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}");
                         break;
                     case 201:
                         subject = $"Order {error.RequestID} was rejected";
@@ -268,6 +272,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         break;
                     case 2103:
                     case 2105:
+                        subject = error.ErrorCodeDescription;
                         // Market data connection lost
                         StartTwsRestartTimer();
                         break;

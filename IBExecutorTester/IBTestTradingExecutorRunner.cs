@@ -1,6 +1,7 @@
 ﻿using Capital.GSG.FX.Trading.Executor;
 using System;
 using Net.Teirlinck.FX.Data.MarketData;
+using Net.Teirlinck.FX.Data.OrderData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -18,6 +19,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         }
 
         public void OnMdSizeTick(SizeTick sizeTick)
+        {
+        }
+
+        public void StopTradingStrategy(string name, string version, string message, OrderOrigin origin = OrderOrigin.PositionClose_CircuitBreaker)
         {
         }
     }

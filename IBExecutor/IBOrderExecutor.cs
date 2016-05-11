@@ -35,6 +35,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly IBClient ibClient;
         private readonly MongoDBServer mongoDBServer;
         private readonly MDConnector mdConnector;
+        private readonly ITradingExecutorRunner tradingExecutorRunner;
+
+        private readonly string monitoringEndpoint;
 
         public event Action<Order> OrderUpdated;
 
@@ -132,7 +135,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 throw new ArgumentException($"There is no contract information for {cross}");
         }
 
-        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, CancellationToken stopRequestedCt)
+        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -167,13 +170,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             this.mongoDBServer = mongoDBServer;
             this.convertServiceConnector = convertServiceConnector;
             this.mdConnector = mdConnector;
+            this.tradingExecutorRunner = tradingExecutorRunner;
+            this.monitoringEndpoint = monitoringEndpoint;
 
             ordersAwaitingPlaceConfirmationTimer = new Timer(OrdersAwaitingPlaceConfirmationCb, null, 5500, 2000);
         }
 
-        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, CancellationToken stopRequestedCt)
+        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
-            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, convertServiceConnector, mdConnector, stopRequestedCt);
+            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, convertServiceConnector, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
 
             await _instance.LoadContracts();
 
@@ -295,6 +300,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             brokerClient.OnAlert(new Alert(AlertLevel.ERROR, nameof(IBOrderExecutor), subject, body));
         }
 
+        private void SendFatal(string subject, string body, string actionUrl = null)
+        {
+            brokerClient.OnAlert(new Alert(AlertLevel.FATAL, nameof(IBOrderExecutor), subject, body, actionUrl: actionUrl));
+        }
+
         internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
         {
             logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
@@ -410,6 +420,32 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
             OrderUpdated?.Invoke(order);
+        }
+
+        internal void StopTradingStrategyForOrder(int orderId, string message)
+        {
+            Order order;
+            if (orders.TryGetValue(orderId, out order))
+            {
+                if (order.Strategy != null && !string.IsNullOrEmpty(order.Strategy.Name) && !string.IsNullOrEmpty(order.Strategy.Version))
+                {
+                    string err = $"Requesting strategy {order.Strategy.Name} {order.Strategy.Version} to stop trading: {message}";
+
+                    logger.Error(err);
+
+                    string actionUrl = order.PermanentID > 0 && !string.IsNullOrEmpty(monitoringEndpoint) ? $"{monitoringEndpoint}/#/orders/id/{order.PermanentID}" : null;
+
+                    SendFatal($"Stop trading for {order.Strategy}", err, actionUrl);
+
+                    tradingExecutorRunner?.StopTradingStrategy(order.Strategy.Name, order.Strategy.Version, message);
+                }
+                else
+                    logger.Error($"Failed to request strategy to stop trading for order {orderId}: strategy is null or invalid");
+            }
+            else
+            {
+                logger.Error($"Failed to request strategy to stop trading for order {orderId}: unknown order");
+            }
         }
 
         private void RequestOpenOrders()
