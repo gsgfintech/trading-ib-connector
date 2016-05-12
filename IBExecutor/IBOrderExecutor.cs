@@ -613,7 +613,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin)
+        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategyName, string strategyVersion, int? parentId, OrderOrigin origin)
         {
             RTBar latest = await mdConnector.GetLatest(cross, stopRequestedCt);
 
@@ -624,7 +624,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Quantity = quantity,
                 TimeInForce = tif,
                 Contract = GetContract(cross),
-                OurRef = strategy.Contains("|Client:") ? strategy : $"Strategy:{strategy}|Client:{ibClient.ClientName}",
+                OurRef = $"Strategy:{strategyName}-{strategyVersion}|Client:{ibClient.ClientName}",
                 ParentOrderID = parentId ?? 0,
                 LastAsk = latest?.Ask.Close,
                 LastBid = latest?.Bid.Close,
@@ -641,7 +641,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 },
                 LastUpdateTime = DateTime.Now,
                 PlacedTime = DateTime.Now,
-                UsdQuantity = await GetUSDQuantity(cross, quantity)
+                UsdQuantity = await GetUSDQuantity(cross, quantity),
+                Strategy = new OrderStrategy() { Name = strategyName, Version = strategyVersion }
             };
 
             #region Commission
@@ -663,7 +664,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return order;
         }
 
-        public async Task<int> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -685,7 +686,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing LIMIT order: {side} {quantity} {cross} @ {limitPrice} (TIF: {tif})");
 
             // 1. Prepare the limit order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategyName, strategyVersion, parentId, origin);
             order.Type = LIMIT;
             order.LimitPrice = limitPrice;
 
@@ -695,7 +696,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -717,7 +718,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing STOP order: {side} {quantity} {cross} @ {stopPrice} (TIF: {tif})");
 
             // 1. Prepare the limit order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategyName, strategyVersion, parentId, origin);
             order.Type = STOP;
             order.StopPrice = stopPrice;
 
@@ -727,7 +728,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -749,7 +750,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
 
             // 1. Prepare the market order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategyName, strategyVersion, parentId, origin);
             order.Type = MARKET;
 
             // 2. Add the order to the placement queue
@@ -758,7 +759,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -780,7 +781,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing TRAILING_MARKET_IF_TOUCHED order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
 
             // 1. Prepare the order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategyName, strategyVersion, parentId, origin);
             order.Type = TRAILING_MARKET_IF_TOUCHED;
             order.TrailingAmount = trailingAmount;
 
@@ -790,7 +791,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<int> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -812,7 +813,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing TRAILING_STOP order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
 
             // 1. Prepare the order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategyName, strategyVersion, parentId, origin);
             order.Type = TRAILING_STOP;
             order.TrailingAmount = trailingAmount;
 
@@ -949,7 +950,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     OrderSide side = pos.Value > 0 ? SELL : BUY;
 
-                    int orderId = await PlaceMarketOrder(pos.Key, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", origin: origin, ct: ct);
+                    int orderId = await PlaceMarketOrder(pos.Key, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", "1.0", origin: origin, ct: ct);
 
                     if (orderId > 0)
                         logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {orderId})");
@@ -979,7 +980,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 case LIMIT:
                     // 1. Place new order
-                    int newLimitOrderId = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    int newLimitOrderId = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
 
                     if (newLimitOrderId > -1)
                     {
@@ -995,7 +996,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     return newLimitOrderId;
                 case STOP:
                     // 1. Place new order
-                    int newStopOrderId = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.OurRef, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    int newStopOrderId = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
 
                     if (newStopOrderId > -1)
                     {

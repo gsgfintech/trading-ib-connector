@@ -43,8 +43,8 @@
       <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.0.0.0\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.5.4.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.5.4.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.5.5.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.5.5.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="log4net, Version=1.2.15.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
