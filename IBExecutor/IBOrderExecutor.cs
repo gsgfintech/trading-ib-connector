@@ -1,5 +1,4 @@
-﻿using Capital.GSG.FX.FXConverterServiceConnector;
-using log4net;
+﻿using log4net;
 using Net.Teirlinck.FX.Data.ContractData;
 using static Net.Teirlinck.FX.Data.ContractData.Currency;
 using Net.Teirlinck.FX.Data.OrderData;
@@ -19,6 +18,7 @@ using Capital.GSG.FX.MarketDataService.Connector;
 using Net.Teirlinck.FX.Data.MarketData;
 using Net.Teirlinck.FX.Data.System;
 using Capital.GSG.FX.Trading.Executor;
+using Capital.GSG.FX.FXConverter;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -31,7 +31,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly CancellationToken stopRequestedCt;
 
         private readonly BrokerClient brokerClient;
-        private readonly ConvertConnector convertServiceConnector;
+        private readonly IFxConverter fxConverter;
         private readonly IBClient ibClient;
         private readonly MongoDBServer mongoDBServer;
         private readonly MDConnector mdConnector;
@@ -135,7 +135,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 throw new ArgumentException($"There is no contract information for {cross}");
         }
 
-        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -146,8 +146,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (mongoDBServer == null)
                 throw new ArgumentNullException(nameof(mongoDBServer));
 
-            if (convertServiceConnector == null)
-                throw new ArgumentNullException(nameof(convertServiceConnector));
+            if (fxConverter == null)
+                throw new ArgumentNullException(nameof(fxConverter));
 
             if (mdConnector == null)
                 throw new ArgumentNullException(nameof(mdConnector));
@@ -168,7 +168,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             };
 
             this.mongoDBServer = mongoDBServer;
-            this.convertServiceConnector = convertServiceConnector;
+            this.fxConverter = fxConverter;
             this.mdConnector = mdConnector;
             this.tradingExecutorRunner = tradingExecutorRunner;
             this.monitoringEndpoint = monitoringEndpoint;
@@ -176,9 +176,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersAwaitingPlaceConfirmationTimer = new Timer(OrdersAwaitingPlaceConfirmationCb, null, 5500, 2000);
         }
 
-        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
-            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, convertServiceConnector, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
+            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
 
             await _instance.LoadContracts();
 
@@ -587,7 +587,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return quantity;
             else
             {
-                var usdQuantity = await convertServiceConnector.Convert(quantity, CrossUtils.GetQuotedCurrency(cross), USD, stopRequestedCt);
+                var usdQuantity = await fxConverter.Convert(quantity, CrossUtils.GetQuotedCurrency(cross), USD, stopRequestedCt);
                 return usdQuantity.HasValue ? (int)Math.Floor(usdQuantity.Value) : (int?)null;
             }
         }

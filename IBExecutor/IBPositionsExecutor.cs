@@ -1,4 +1,4 @@
-﻿using Capital.GSG.FX.FXConverterServiceConnector;
+﻿using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.Trading.Executor;
 using log4net;
 using Net.Teirlinck.FX.Data.AccountPortfolioData;
@@ -16,7 +16,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
     {
         private static ILog logger = LogManager.GetLogger(nameof(IBPositionsExecutor));
 
-        private readonly ConvertConnector convertServiceConnector;
+        private readonly IFxConverter fxConverter;
 
         private readonly CancellationToken stopRequestedCt;
 
@@ -34,12 +34,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private Dictionary<string, Account> Accounts { get; } = new Dictionary<string, Account>();
 
-        private IBPositionsExecutor(IBClient ibClient, ConvertConnector convertServiceConnector, string tradingAccount, CancellationToken stopRequestedCt)
+        private IBPositionsExecutor(IBClient ibClient, IFxConverter fxConverter, string tradingAccount, CancellationToken stopRequestedCt)
         {
-            if (convertServiceConnector == null)
-                throw new ArgumentNullException(nameof(convertServiceConnector));
+            if (fxConverter == null)
+                throw new ArgumentNullException(nameof(fxConverter));
 
-            this.convertServiceConnector = convertServiceConnector;
+            this.fxConverter = fxConverter;
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -59,7 +59,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             };
         }
 
-        internal static IBPositionsExecutor SetupIBPositionsExecutor(IBClient ibClient, string tradingAccount, ConvertConnector convertServiceConnector, CancellationToken stopRequestedCt)
+        internal static IBPositionsExecutor SetupIBPositionsExecutor(IBClient ibClient, string tradingAccount, IFxConverter fxConverter, CancellationToken stopRequestedCt)
         {
             if (ibClient == null)
                 throw new ArgumentNullException(nameof(ibClient));
@@ -67,7 +67,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (string.IsNullOrEmpty(tradingAccount))
                 throw new ArgumentNullException(nameof(tradingAccount));
 
-            _instance = new IBPositionsExecutor(ibClient, convertServiceConnector, tradingAccount, stopRequestedCt);
+            _instance = new IBPositionsExecutor(ibClient, fxConverter, tradingAccount, stopRequestedCt);
 
             _instance.SubscribeAccountUpdates(tradingAccount);
 
@@ -162,7 +162,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (CrossUtils.GetQuotedCurrency(posSecurity.Cross) == Currency.USD)
                     posSecurity.UnrealizedPnlUsd = posSecurity.UnrealizedPnL.Value;
                 else
-                    posSecurity.UnrealizedPnlUsd = await convertServiceConnector.Convert(posSecurity.UnrealizedPnL.Value, CrossUtils.GetQuotedCurrency(posSecurity.Cross), Currency.USD, stopRequestedCt);
+                    posSecurity.UnrealizedPnlUsd = await fxConverter.Convert(posSecurity.UnrealizedPnL.Value, CrossUtils.GetQuotedCurrency(posSecurity.Cross), Currency.USD, stopRequestedCt);
 
                 logger.Debug($"Computed unrealised USD PnL for {posSecurity.Cross} position: {posSecurity.UnrealizedPnlUsd} USD");
             }
@@ -173,7 +173,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (CrossUtils.GetQuotedCurrency(posSecurity.Cross) == Currency.USD)
                     posSecurity.RealizedPnlUsd = posSecurity.RealizedPnL.Value;
                 else
-                    posSecurity.RealizedPnlUsd = await convertServiceConnector.Convert(posSecurity.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(posSecurity.Cross), Currency.USD, stopRequestedCt);
+                    posSecurity.RealizedPnlUsd = await fxConverter.Convert(posSecurity.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(posSecurity.Cross), Currency.USD, stopRequestedCt);
 
                 logger.Debug($"Computed realised USD PnL for {posSecurity.Cross} position: {posSecurity.UnrealizedPnlUsd} USD");
             }

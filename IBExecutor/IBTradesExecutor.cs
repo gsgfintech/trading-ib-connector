@@ -8,9 +8,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using Capital.GSG.FX.FXConverterServiceConnector;
 using System.Threading;
 using Net.Teirlinck.FX.Data.OrderData;
+using Capital.GSG.FX.FXConverter;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -20,7 +20,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private IBClient IBClient { get; set; }
         private readonly BrokerClient brokerClient;
-        private readonly ConvertConnector convertServiceConnector;
+        private readonly IFxConverter fxConverter;
 
         private readonly CancellationToken stopRequestedCt;
 
@@ -31,7 +31,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public event Action<Execution> TradeReceived;
 
-        internal IBTradesExecutor(BrokerClient brokerClient, IBClient ibClient, ConvertConnector convertServiceConnector, CancellationToken stopRequestedCt)
+        internal IBTradesExecutor(BrokerClient brokerClient, IBClient ibClient, IFxConverter fxConverter, CancellationToken stopRequestedCt)
         {
             if (ibClient == null)
                 throw new ArgumentNullException(nameof(ibClient));
@@ -39,12 +39,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
 
-            if (convertServiceConnector == null)
-                throw new ArgumentNullException(nameof(convertServiceConnector));
+            if (fxConverter == null)
+                throw new ArgumentNullException(nameof(fxConverter));
 
             this.brokerClient = brokerClient;
 
-            this.convertServiceConnector = convertServiceConnector;
+            this.fxConverter = fxConverter;
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -77,7 +77,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (execution.CommissionCcy.Value == Currency.USD)
                         execution.CommissionUsd = execution.Commission.Value;
                     else
-                        execution.CommissionUsd = await convertServiceConnector.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
+                        execution.CommissionUsd = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
 
                     logger.Debug($"Computed USD commission for trade {execution.ExecutionId}: {execution.CommissionUsd} USD");
                 }
@@ -88,7 +88,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (CrossUtils.GetQuotedCurrency(execution.Cross) == Currency.USD)
                         execution.RealizedPnlUsd = execution.RealizedPnL;
                     else
-                        execution.RealizedPnlUsd = await convertServiceConnector.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
+                        execution.RealizedPnlUsd = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
 
                     logger.Debug($"Computed USD PnL for trade {execution.ExecutionId}: {execution.RealizedPnlUsd} USD");
 
@@ -161,7 +161,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (execution.CommissionCcy.Value == Currency.USD)
                         execution.CommissionUsd = execution.Commission.Value;
                     else
-                        execution.CommissionUsd = await convertServiceConnector.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
+                        execution.CommissionUsd = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
 
                     logger.Debug($"Computed USD commission for trade {execution.ExecutionId}: {execution.CommissionUsd} USD");
                 }
@@ -174,7 +174,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else if (CrossUtils.GetBaseCurrency(execution.Cross) == Currency.USD)
                         execution.RealizedPnlUsd = 1 / execution.RealizedPnL;
                     else
-                        execution.RealizedPnlUsd = await convertServiceConnector.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
+                        execution.RealizedPnlUsd = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
 
                     logger.Debug($"Computed USD PnL for trade {execution.ExecutionId}: {execution.RealizedPnlUsd} USD");
                 }

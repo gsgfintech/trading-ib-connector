@@ -15,9 +15,10 @@ using System.Linq;
 using Capital.GSG.FX.Trading.Executor;
 using Capital.GSG.FX.MonitoringAppConnector;
 using Net.Teirlinck.FX.FXTradingMongoConnector;
-using Capital.GSG.FX.FXConverterServiceConnector;
 using System.Collections.Concurrent;
 using Capital.GSG.FX.MarketDataService.Connector;
+using Capital.GSG.FX.FXConverter;
+using Capital.GSG.FX.FXConverterServiceConnector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -27,7 +28,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static MongoDBServer mongoDBServer = null;
 
-        private static ConvertConnector convertConnector;
+        private static IFxConverter fxConverter;
         private static PositionsConnector positionsConnector;
         private static ExecutionsConnector executionsConnector;
         private static OrdersConnector ordersConnector = null;
@@ -77,7 +78,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Debug($"ConvertServiceEndpoint: {convertServiceEndpoint}");
             logger.Debug($"MDConnector: {marketDataServiceEndpoint}");
 
-            convertConnector = ConvertConnector.GetConnector(convertServiceEndpoint);
+            fxConverter = ConvertConnector.GetConnector(convertServiceEndpoint);
             positionsConnector = PositionsConnector.GetConnector(monitoringEndpoint);
             executionsConnector = ExecutionsConnector.GetConnector(monitoringEndpoint);
             ordersConnector = OrdersConnector.GetConnector(monitoringEndpoint);
@@ -96,7 +97,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, mongoDBServer, convertConnector, mdConnector, null, stopRequestedCts.Token, false);
+                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, mongoDBServer, fxConverter, mdConnector, null, stopRequestedCts.Token, false);
                 ((BrokerClient)brokerClient).StopComplete += (() => stopCompleteEvent.Set());
                 ((BrokerClient)brokerClient).AlertReceived += (alert) =>
                 {

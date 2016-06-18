@@ -10,10 +10,10 @@ using Net.Teirlinck.FX.Data.System;
 using static Net.Teirlinck.FX.Data.System.SystemStatusLevel;
 using System.Linq;
 using Net.Teirlinck.Utils;
-using Capital.GSG.FX.FXConverterServiceConnector;
 using Capital.GSG.FX.MarketDataService.Connector;
 using Net.Teirlinck.FX.Data.OrderData;
 using Capital.GSG.FX.IBControllerServiceConnector;
+using Capital.GSG.FX.FXConverter;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -106,7 +106,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             statusUpdateTimer = new Timer(state => SendStatusUpdate(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
         }
 
-        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks)
+        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks)
         {
             if (clientConfig == null)
                 throw new ArgumentNullException(nameof(clientConfig));
@@ -185,8 +185,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (mongoDBServer == null)
                 throw new ArgumentNullException(nameof(mongoDBServer));
 
-            if (convertServiceConnector == null)
-                throw new ArgumentNullException(nameof(convertServiceConnector));
+            if (fxConverter == null)
+                throw new ArgumentNullException(nameof(fxConverter));
 
             logger.Info($"Loading IB client config for {name}");
             logger.Info($"ClientNumber: {number}");
@@ -204,20 +204,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
 
-            await _instance.SetupExecutors(mongoDBServer, convertServiceConnector, mdConnector, tradingAccount, logTicks, stopRequestedCt);
+            await _instance.SetupExecutors(mongoDBServer, fxConverter, mdConnector, tradingAccount, logTicks, stopRequestedCt);
 
             return _instance;
         }
 
-        private async Task SetupExecutors(MongoDBServer mongoDBServer, ConvertConnector convertServiceConnector, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt)
+        private async Task SetupExecutors(MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt)
         {
             if (brokerClientType != IBrokerClientType.MarketData)
             {
                 logger.Info("Setting up orders executor, positions executor and trades executor");
 
-                orderExecutor = await IBOrderExecutor.SetupOrderExecutor(this, ibClient, mongoDBServer, convertServiceConnector, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
-                positionExecutor = IBPositionsExecutor.SetupIBPositionsExecutor(ibClient, tradingAccount, convertServiceConnector, stopRequestedCt);
-                tradesExecutor = new IBTradesExecutor(this, ibClient, convertServiceConnector, stopRequestedCt);
+                orderExecutor = await IBOrderExecutor.SetupOrderExecutor(this, ibClient, mongoDBServer, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
+                positionExecutor = IBPositionsExecutor.SetupIBPositionsExecutor(ibClient, tradingAccount, fxConverter, stopRequestedCt);
+                tradesExecutor = new IBTradesExecutor(this, ibClient, fxConverter, stopRequestedCt);
             }
 
             if (brokerClientType != IBrokerClientType.Trading)
