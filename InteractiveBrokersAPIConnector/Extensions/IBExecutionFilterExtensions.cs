@@ -1,4 +1,5 @@
-﻿using Net.Teirlinck.FX.Data.ExecutionData;
+﻿using Net.Teirlinck.FX.Data.ContractData;
+using Net.Teirlinck.FX.Data.ExecutionData;
 using Net.Teirlinck.FX.Data.OrderData;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +19,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                     AcctCode = !string.IsNullOrEmpty(apiExecFilter.AccountCode) ? apiExecFilter.AccountCode : string.Empty,
                     Time = apiExecFilter.SinceTime.ToString("yyyyMMdd-hh:mm:ss"),
                     Symbol = !string.IsNullOrEmpty(apiExecFilter.Symbol) ? apiExecFilter.Symbol : string.Empty,
-                    SecType = (apiExecFilter.SecurityType != null) ? apiExecFilter.SecurityType.Code : string.Empty,
+                    SecType = (apiExecFilter.SecurityType != SecurityType.UNKNOWN) ? apiExecFilter.SecurityType.ToString() : string.Empty,
                     Exchange = !string.IsNullOrEmpty(apiExecFilter.Exchange) ? apiExecFilter.Exchange : string.Empty,
                     Side = apiExecFilter.Side != OrderSide.UNKNOWN ? apiExecFilter.Side.ToString() : string.Empty
                 };

@@ -34,8 +34,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                 if (contract.SecIdentifierType != null)
                     ibContract.SecIdType = contract.SecIdentifierType.Code;
 
-                if (contract.SecurityType != null)
-                    ibContract.SecType = contract.SecurityType;
+                if (contract.SecurityType != SecurityType.UNKNOWN)
+                    ibContract.SecType = contract.SecurityType.ToString();
 
                 if (contract.Right != null)
                     ibContract.Right = contract.Right.Code;
@@ -58,7 +58,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                 {
                     ContractID = ibContract.ConId,
                     Symbol = CurrencyUtils.GetFromStr(ibContract.Symbol),
-                    SecurityType = ibContract.SecType,
+                    SecurityType = SecurityTypeUtils.GetFromStr(ibContract.SecType),
                     Expiry = ibContract.Expiry,
                     Strike = ibContract.Strike,
                     Right = OptionSides.GetFromString(ibContract.Right),

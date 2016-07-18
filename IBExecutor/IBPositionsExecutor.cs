@@ -183,7 +183,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             if (!string.IsNullOrEmpty(accountSubscribed) && Accounts.ContainsKey(accountSubscribed))
             {
-                Accounts[accountSubscribed].AddUpdateOrRemoveAttribute(key, value, currency);
+                Accounts[accountSubscribed].Attributes[key]= new AccountAttribute() { AccountName = accountSubscribed, Currency = currency, Key = key, Value = value };
 
                 AccountUpdated?.Invoke(Accounts[accountSubscribed]);
             }
@@ -210,7 +210,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Subscribe to account updates for {accountName}");
 
             if (!Accounts.ContainsKey(accountName))
-                Accounts.Add(accountName, new Account(accountName));
+                Accounts.Add(accountName, new Account() { Name = accountName });
 
             ibClient.RequestManager.AccountRequestManager.SubscribeToAccountUpdates(accountName);
 

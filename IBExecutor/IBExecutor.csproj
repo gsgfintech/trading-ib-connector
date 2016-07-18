@@ -43,8 +43,8 @@
       <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.0.0.0\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.5.5.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.5.5.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.6.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.6.1.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="log4net, Version=1.2.15.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
@@ -63,20 +63,20 @@
       <HintPath>..\packages\MongoDB.Driver.Core.2.2.4\lib\net45\MongoDB.Driver.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.Data, Version=1.38.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.38.0.0\lib\net46\Net.Teirlinck.FX.Data.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.Data, Version=1.41.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.41.0\lib\net46\Net.Teirlinck.FX.Data.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.FXTradingMongoConnector, Version=5.6.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.5.6.0.0\lib\net46\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.FXTradingMongoConnector, Version=5.9.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.5.9.0\lib\net46\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.Utils, Version=1.7.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.Utils.1.7.0.0\lib\net46\Net.Teirlinck.Utils.dll</HintPath>
+    <Reference Include="Net.Teirlinck.Utils, Version=1.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.Utils.1.8.0.0\lib\net46\Net.Teirlinck.Utils.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Newtonsoft.Json, Version=8.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.8.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.9.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
