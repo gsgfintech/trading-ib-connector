@@ -14,6 +14,7 @@ using Capital.GSG.FX.MarketDataService.Connector;
 using Net.Teirlinck.FX.Data.OrderData;
 using Capital.GSG.FX.IBControllerServiceConnector;
 using Capital.GSG.FX.FXConverter;
+using Capital.GSG.FX.IBData.Service.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -29,6 +30,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private const string IBControllerPortKey = "IBControllerPort";
         private const string IBControllerServiceEndpointKey = "IBControllerServiceEndpoint";
         private const string IBControllerServiceAppNameKey = "IBControllerServiceAppName";
+        private const string IBDataServiceEndpointKey = "IBDataServiceEndpoint";
         private const string IsConnectedKey = "IsConnected";
         private const string MessageKey = "Message";
         private const string StatusKey = "Status";
@@ -69,6 +71,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public ITradesExecutor TradesExecutor { get { return tradesExecutor; } }
 
         private readonly string monitoringEndpoint;
+        private readonly string ibDataServiceEndpoint;
 
         private SystemStatus Status { get; set; }
         public event Action<SystemStatus> StatusUpdated;
@@ -81,12 +84,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, string ibControllerServiceEndpoint, int ibControllerPort, string ibControllerAppName, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, string ibControllerServiceEndpoint, int ibControllerPort, string ibControllerAppName, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, string ibDataServiceEndpoint, CancellationToken stopRequestedCt)
         {
             this.brokerClientType = clientType;
             this.clientName = clientName;
             this.tradingExecutorRunner = tradingExecutorRunner;
             this.monitoringEndpoint = monitoringEndpoint;
+            this.ibDataServiceEndpoint = ibDataServiceEndpoint;
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -182,24 +186,33 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 throw new ArgumentException($"Failed to parse config key {ClientTradingAccountKey} as string");
             #endregion
 
-            if (mongoDBServer == null)
+            #region IBDataServiceEndpoint
+            if (!clientConfig.ContainsKey(IBDataServiceEndpointKey) || string.IsNullOrEmpty(clientConfig[IBDataServiceEndpointKey]?.ToString()))
+                throw new ArgumentNullException(nameof(IBDataServiceEndpointKey));
+
+            string ibDataServiceEndpoint = clientConfig[IBDataServiceEndpointKey].ToString();
+            #endregion
+
+            if (mongoDBServer == null && clientType != IBrokerClientType.MarketData) // MongoDB only required for trading broker client
                 throw new ArgumentNullException(nameof(mongoDBServer));
 
             if (fxConverter == null)
                 throw new ArgumentNullException(nameof(fxConverter));
 
-            logger.Info($"Loading IB client config for {name}");
-            logger.Info($"ClientNumber: {number}");
-            logger.Info($"IBHost: {host}");
-            logger.Info($"IBPort: {port}");
-            logger.Info($"TradingAccount: {tradingAccount}");
-            logger.Info($"IBControllerPort: {ibControllerPort}");
-            logger.Info($"IBControllerServiceEndpoint: {ibControllerServiceEndpoint}");
-            logger.Info($"IBControllerServiceAppName: {ibControllerServiceAppName}");
+            logger.Debug($"Loading IB client config for {name}");
+            logger.Debug($"ClientNumber: {number}");
+            logger.Debug($"IBHost: {host}");
+            logger.Debug($"IBPort: {port}");
+            logger.Debug($"TradingAccount: {tradingAccount}");
+            logger.Debug($"IBControllerPort: {ibControllerPort}");
+            logger.Debug($"IBControllerServiceEndpoint: {ibControllerServiceEndpoint}");
+            logger.Debug($"IBControllerServiceAppName: {ibControllerServiceAppName}");
+            logger.Debug($"IBDataServiceEndpoint: {ibDataServiceEndpoint}");
 
-            List<APIErrorCode> ibApiErrorCodes = await mongoDBServer.APIErrorCodeActioner.GetAll(stopRequestedCt);
+            APIErrorCodesConnector errorCodesConnector = APIErrorCodesConnector.GetConnector(ibDataServiceEndpoint);
+            List<APIErrorCode> ibApiErrorCodes = await errorCodesConnector.GetAll(stopRequestedCt);
 
-            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibControllerServiceEndpoint, ibControllerPort, ibControllerServiceAppName, ibApiErrorCodes, monitoringEndpoint, stopRequestedCt);
+            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibControllerServiceEndpoint, ibControllerPort, ibControllerServiceAppName, ibApiErrorCodes, monitoringEndpoint, ibDataServiceEndpoint, stopRequestedCt);
 
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
@@ -224,7 +237,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Setting up market data provider and news bulletins provider");
 
-                marketDataProvider = await IBMarketDataProvider.SetupIBMarketDataProvider(this, ibClient, mongoDBServer, logTicks, stopRequestedCt);
+                marketDataProvider = await IBMarketDataProvider.SetupIBMarketDataProvider(this, ibClient, ibDataServiceEndpoint, logTicks, stopRequestedCt);
                 newsBulletinProvider = new IBNewsBulletinProvider(ibClient);
             }
         }

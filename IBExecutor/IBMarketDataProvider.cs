@@ -2,17 +2,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Net.Teirlinck.FX.Data.ContractData;
 using log4net;
 using System.Collections.Concurrent;
 using Net.Teirlinck.FX.Data.MarketData;
 using static Net.Teirlinck.FX.Data.MarketData.MarketDataTickType;
-using Net.Teirlinck.FX.FXTradingMongoConnector;
 using System.Threading;
 using Net.Teirlinck.Utils;
 using static Net.Teirlinck.FX.Data.System.SystemStatusLevel;
+using Capital.GSG.FX.IBData.Service.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -31,11 +30,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private readonly BrokerClient brokerClient;
         private readonly IBClient ibClient;
-        private readonly MongoDBServer mongoDBServer;
+        private readonly ContractsConnector contractsConnector;
         private readonly bool logTicks;
         private readonly CancellationToken stopRequestedCt;
 
-        private IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, bool logTicks, CancellationToken stopRequestedCt)
+        private IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, string ibDataServiceEndpoint, bool logTicks, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -43,11 +42,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ibClient == null)
                 throw new ArgumentNullException(nameof(ibClient));
 
-            if (mongoDBServer == null)
-                throw new ArgumentNullException(nameof(mongoDBServer));
+            if (string.IsNullOrEmpty(ibDataServiceEndpoint))
+                throw new ArgumentNullException(nameof(ibDataServiceEndpoint));
 
             this.brokerClient = brokerClient;
-            this.mongoDBServer = mongoDBServer;
+
+            contractsConnector = ContractsConnector.GetConnector(ibDataServiceEndpoint);
+
             this.stopRequestedCt = stopRequestedCt;
 
             this.ibClient = ibClient;
@@ -71,9 +72,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             SetupEventListeners();
         }
 
-        internal static async Task<IBMarketDataProvider> SetupIBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, bool logTicks, CancellationToken stopRequestedCt)
+        internal static async Task<IBMarketDataProvider> SetupIBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, string ibDataServiceEndpoint, bool logTicks, CancellationToken stopRequestedCt)
         {
-            _instance = new IBMarketDataProvider(brokerClient, ibClient, mongoDBServer, logTicks, stopRequestedCt);
+            _instance = new IBMarketDataProvider(brokerClient, ibClient, ibDataServiceEndpoint, logTicks, stopRequestedCt);
 
             await _instance.LoadContracts();
 
@@ -82,7 +83,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private async Task LoadContracts()
         {
-            List<Contract> list = await mongoDBServer.ContractActioner.GetAll(stopRequestedCt);
+            List<Contract> list = await contractsConnector.GetAll(stopRequestedCt);
 
             if (!list.IsNullOrEmpty())
             {
