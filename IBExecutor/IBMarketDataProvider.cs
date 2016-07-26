@@ -323,7 +323,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void ResubmitPreviousMarketDataRequests()
         {
-            SubmitMarketDataRequests(marketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key));
+            int[] requestIds = marketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key).Distinct().ToArray();
+
+            if (!requestIds.IsNullOrEmpty())
+            {
+                logger.Info($"Resubmitting requests {string.Join(", ", requestIds)}");
+
+                CancelMarketDataRequests(requestIds);
+
+                Task.Delay(TimeSpan.FromSeconds(2)).Wait();
+
+                SubmitMarketDataRequests(requestIds);
+            }
+            else
+                logger.Info("No request to resubmit");
         }
 
         private void SubmitMarketDataRequest(int requestId)
