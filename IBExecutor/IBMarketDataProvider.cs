@@ -92,10 +92,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 int counter = 10;
                 foreach (Contract contract in list)
                 {
-                    marketDataRequests.Add(counter + 0, new MarketDataRequest(contract.Cross, contract, MarketDataRequestType.MarketDataTick));
-                    marketDataRequests.Add(counter + 1, new MarketDataRequest(contract.Cross, contract, MarketDataRequestType.RtBarBid));
-                    marketDataRequests.Add(counter + 2, new MarketDataRequest(contract.Cross, contract, MarketDataRequestType.RtBarMid));
-                    marketDataRequests.Add(counter + 3, new MarketDataRequest(contract.Cross, contract, MarketDataRequestType.RtBarAsk));
+                    marketDataRequests.Add(counter + 0, new MarketDataRequest(counter + 0, contract.Cross, contract, MarketDataRequestType.MarketDataTick));
+                    marketDataRequests.Add(counter + 1, new MarketDataRequest(counter + 1, contract.Cross, contract, MarketDataRequestType.RtBarBid));
+                    marketDataRequests.Add(counter + 2, new MarketDataRequest(counter + 2, contract.Cross, contract, MarketDataRequestType.RtBarMid));
+                    marketDataRequests.Add(counter + 3, new MarketDataRequest(counter + 3, contract.Cross, contract, MarketDataRequestType.RtBarAsk));
 
                     counter += 10;
                 }
@@ -276,6 +276,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private int GetRequestIdForCrossAndRequestType(Cross cross, MarketDataRequestType type, bool submitted)
         {
             return marketDataRequests.Where(r => r.Value.Cross == cross && r.Value.Type == type && r.Value.Submitted == submitted).Select(r => r.Key).FirstOrDefault();
+        }
+
+        internal MarketDataRequest GetRequestDetails(int requestId)
+        {
+            if (marketDataRequests.ContainsKey(requestId))
+                return marketDataRequests[requestId];
+            else
+            {
+                logger.Error($"Unable to retrieve details for unknown requestId {requestId}");
+                return null;
+            }
         }
 
         private IEnumerable<int> GetRequestIdsForCrossAndRequestTypes(Cross cross, IEnumerable<MarketDataRequestType> types, bool submitted)
@@ -531,27 +542,34 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             UnsubscribeAll();
         }
+    }
 
-        private class MarketDataRequest
+    internal class MarketDataRequest
+    {
+        public int RequestId { get; set; }
+        public Cross Cross { get; private set; }
+        public Contract Contract { get; private set; }
+        public MarketDataRequestType Type { get; private set; }
+        public bool Submitted { get; set; }
+
+        public MarketDataRequest(int requestId, Cross cross, Contract contract, MarketDataRequestType type)
         {
-            public Cross Cross { get; private set; }
-            public Contract Contract { get; private set; }
-            public MarketDataRequestType Type { get; private set; }
-            public bool Submitted { get; set; }
-
-            public MarketDataRequest(Cross cross, Contract contract, MarketDataRequestType type)
-            {
-                Cross = cross;
-                Contract = contract;
-                Type = type;
-                Submitted = false;
-            }
+            RequestId = requestId;
+            Cross = cross;
+            Contract = contract;
+            Type = type;
+            Submitted = false;
         }
 
-        private enum MarketDataRequestType
+        public override string ToString()
         {
-            MarketDataTick,
-            RtBarBid, RtBarMid, RtBarAsk
+            return $"{RequestId} ({Cross} - {Type})";
         }
+    }
+
+    internal enum MarketDataRequestType
+    {
+        MarketDataTick,
+        RtBarBid, RtBarMid, RtBarAsk
     }
 }

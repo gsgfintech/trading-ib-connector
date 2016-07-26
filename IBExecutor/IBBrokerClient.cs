@@ -271,6 +271,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         body = $"[{error.Level} {error.ErrorCode}] {error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}";
                         orderExecutor.StopTradingStrategyForOrder(error.RequestID, $"{error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}");
                         break;
+                    case 200:
+                        MarketDataRequest requestDetails = marketDataProvider?.GetRequestDetails(error.RequestID);
+                        if (requestDetails != null)
+                            body = $"[{error.Level} {error.ErrorCode}] No security definition has been found for the request {requestDetails}";
+                        break;
                     case 201:
                         subject = $"Order {error.RequestID} was rejected";
                         body = $"[{error.Level} {error.ErrorCode}] {subject}";
