@@ -8,7 +8,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
     public partial class IBClientResponsesManager
     {
-        public event Func<int, UnderComp, UnderComp> DeltaNeutralValidationReceived;
         public event Action<int> NextValidIDReceived;
         public event Action<int, Contract, Order, OrderState> OpenOrdersReceived;
         public event Action OrderOpenRequestEnd;
@@ -23,7 +22,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="underComp">Underlying component</param>
         public void deltaNeutralValidation(int reqId, IBApi.UnderComp underComp)
         {
-            DeltaNeutralValidationReceived?.Invoke(reqId, underComp.ToUnderComp());
+            // Not implemented
         }
 
         /// <summary>

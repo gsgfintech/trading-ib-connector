@@ -84,7 +84,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersConnector = OrdersConnector.GetConnector(monitoringEndpoint);
             mdConnector = MDConnector.GetConnector(marketDataServiceEndpoint);
 
-            mongoDBServer = new MongoDBServer(mongoDBName, mongoDBHost, mongoDBPort);
+            mongoDBServer = MongoDBServer.CreateServer(mongoDBName, mongoDBHost, mongoDBPort);
 
             Do(brokerClientConfig, mongoDBHost, mongoDBPort, mongoDBName).Wait();
         }

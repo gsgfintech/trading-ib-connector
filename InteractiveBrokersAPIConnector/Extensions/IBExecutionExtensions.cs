@@ -20,7 +20,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                     OrderId = ibExecution.OrderId,
                     ClientId = ibExecution.ClientId,
                     Cross = cross,
-                    ExecutionId = ibExecution.ExecId,
+                    Id = ibExecution.ExecId,
                     AccountNumber = ibExecution.AcctNumber,
                     Exchange = ibExecution.Exchange,
                     Price = ibExecution.AvgPrice,

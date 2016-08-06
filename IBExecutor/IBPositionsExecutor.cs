@@ -1,6 +1,7 @@
 ﻿using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.Trading.Executor;
 using log4net;
+using Net.Teirlinck.FX.Data.AccountPortfolio;
 using Net.Teirlinck.FX.Data.AccountPortfolioData;
 using Net.Teirlinck.FX.Data.ContractData;
 using System;
@@ -183,7 +184,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             if (!string.IsNullOrEmpty(accountSubscribed) && Accounts.ContainsKey(accountSubscribed))
             {
-                Accounts[accountSubscribed].Attributes[key]= new AccountAttribute() { AccountName = accountSubscribed, Currency = currency, Key = key, Value = value };
+                AccountAttribute existing = Accounts[accountSubscribed].Attributes.Where(attr => attr.Key == key).FirstOrDefault();
+
+                if (existing != null)
+                    existing.Value = value;
+                else
+                    Accounts[accountSubscribed].Attributes.Add(new AccountAttribute() { Broker = Broker.IB, AccountName = accountSubscribed, Currency = currency, Key = key, Value = value });
 
                 AccountUpdated?.Invoke(Accounts[accountSubscribed]);
             }

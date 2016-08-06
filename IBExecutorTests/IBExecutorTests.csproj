@@ -52,12 +52,12 @@
       <HintPath>..\packages\MongoDB.Driver.Core.2.2.4\lib\net45\MongoDB.Driver.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.Data, Version=1.41.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.41.0\lib\net46\Net.Teirlinck.FX.Data.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.Data, Version=1.48.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.48.3\lib\V4.6.1\Net.Teirlinck.FX.Data.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.Utils, Version=1.8.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.Utils.1.8.0.0\lib\net46\Net.Teirlinck.Utils.dll</HintPath>
+    <Reference Include="Net.Teirlinck.Utils, Version=1.9.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.Utils.1.9.1\lib\V4.6.1\Net.Teirlinck.Utils.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />

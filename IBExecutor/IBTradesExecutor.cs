@@ -79,7 +79,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else
                         execution.CommissionUsd = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
 
-                    logger.Debug($"Computed USD commission for trade {execution.ExecutionId}: {execution.CommissionUsd} USD");
+                    logger.Debug($"Computed USD commission for trade {execution.Id}: {execution.CommissionUsd} USD");
                 }
 
                 // USD Realized PnL
@@ -90,7 +90,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else
                         execution.RealizedPnlUsd = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
 
-                    logger.Debug($"Computed USD PnL for trade {execution.ExecutionId}: {execution.RealizedPnlUsd} USD");
+                    logger.Debug($"Computed USD PnL for trade {execution.Id}: {execution.RealizedPnlUsd} USD");
 
                     execution.RealizedPnlPips = CrossUtils.ConvertToFractionalPips(execution.RealizedPnL.Value / (double)execution.Quantity, execution.Cross);
 
@@ -105,7 +105,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 // Remove the key from the dictionary
                 TempExecution discarded;
-                tmpExecutions.TryRemove(execution.ExecutionId, out discarded);
+                tmpExecutions.TryRemove(execution.Id, out discarded);
             }
         }
 
@@ -135,7 +135,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             EnrichWithOrderData(ref execution);
 
-            TempExecution tmpExecution = tmpExecutions.GetOrAdd(execution.ExecutionId, new TempExecution() { Execution = execution });
+            TempExecution tmpExecution = tmpExecutions.GetOrAdd(execution.Id, new TempExecution() { Execution = execution });
 
             int newCumulativeQuantity = execution.Quantity;
 
@@ -163,7 +163,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else
                         execution.CommissionUsd = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
 
-                    logger.Debug($"Computed USD commission for trade {execution.ExecutionId}: {execution.CommissionUsd} USD");
+                    logger.Debug($"Computed USD commission for trade {execution.Id}: {execution.CommissionUsd} USD");
                 }
 
                 // USD Realized PnL
@@ -176,7 +176,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else
                         execution.RealizedPnlUsd = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
 
-                    logger.Debug($"Computed USD PnL for trade {execution.ExecutionId}: {execution.RealizedPnlUsd} USD");
+                    logger.Debug($"Computed USD PnL for trade {execution.Id}: {execution.RealizedPnlUsd} USD");
                 }
 
                 Trades.Add(execution);
@@ -185,7 +185,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 // Remove the key from the dictionary
                 TempExecution discarded;
-                tmpExecutions.TryRemove(execution.ExecutionId, out discarded);
+                tmpExecutions.TryRemove(execution.Id, out discarded);
             }
         }
 
