@@ -244,92 +244,99 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private async void IbClient_APIErrorReceived(APIError error)
         {
-            if (error != null)
+            try
             {
-                string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})";
-                string body = error.ToString();
-
-                #region Additional action handlers for specific errors
-                switch (error.ErrorCode)
+                if (error != null)
                 {
-                    case 103:
-                        subject = $"Duplicate order ID: {error.RequestID}";
-                        logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
-                        await orderExecutor.RequestNextValidOrderID();
-                        break;
-                    case 110:
-                        subject = $"Limit or stop price of order {error.RequestID} is invalid";
-                        body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}";
-                        break;
-                    case 135:
-                        subject = $"Order {error.RequestID} is not recognized by TWS";
-                        body = $"[{error.Level} {error.ErrorCode}] {subject}. Marking it as cancelled";
-                        orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
-                        break;
-                    case 161:
-                        subject = $"Order {error.RequestID} is not cancellable";
-                        body = $"[{error.Level} {error.ErrorCode}] {error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}";
-                        orderExecutor.StopTradingStrategyForOrder(error.RequestID, $"{error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}");
-                        break;
-                    case 200:
-                        MarketDataRequest requestDetails = marketDataProvider?.GetRequestDetails(error.RequestID);
-                        if (requestDetails != null)
-                            body = $"[{error.Level} {error.ErrorCode}] No security definition has been found for the request {requestDetails}";
-                        break;
-                    case 201:
-                        subject = $"Order {error.RequestID} was rejected";
-                        body = $"[{error.Level} {error.ErrorCode}] {subject}";
-                        break;
-                    case 202:
-                        subject = $"Order {error.RequestID} was cancelled";
-                        body = $"[{error.Level} {error.ErrorCode}] {subject}";
-                        break;
-                    case 1100:
-                    case 1102:
-                        subject = error.ErrorCodeDescription;
-                        break;
-                    case 2103:
-                    case 2105:
-                        subject = error.ErrorCodeDescription;
-                        // Market data connection lost
-                        StartTwsRestartTimer();
-                        break;
-                    case 2104:
-                    case 2106:
-                        // Market data connection resumed
-                        subject = error.ErrorCodeDescription;
-                        TerminateTwsRestartTimer();
-                        break;
-                    default:
-                        break;
-                }
-                #endregion
+                    string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})";
+                    string body = error.ToString();
 
-                switch (error.Level)
-                {
-                    case AlertLevel.DEBUG:
-                        logger.Debug($"{clientName}: {body}");
-                        break;
-                    case AlertLevel.INFO:
-                        logger.Info($"{clientName}: {body}");
-                        break;
-                    case AlertLevel.WARNING:
-                        logger.Warn($"{clientName}: {body}");
-                        break;
-                    case AlertLevel.ERROR:
-                        logger.Error($"{clientName}: {body}");
-                        break;
-                    case AlertLevel.FATAL:
-                        logger.Fatal($"{clientName}: {body}");
-                        break;
-                    default:
-                        break;
-                }
+                    #region Additional action handlers for specific errors
+                    switch (error.ErrorCode)
+                    {
+                        case 103:
+                            subject = $"Duplicate order ID: {error.RequestID}";
+                            logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
+                            await orderExecutor.RequestNextValidOrderID();
+                            break;
+                        case 110:
+                            subject = $"Limit or stop price of order {error.RequestID} is invalid";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}";
+                            break;
+                        case 135:
+                            subject = $"Order {error.RequestID} is not recognized by TWS";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}. Marking it as cancelled";
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
+                            break;
+                        case 161:
+                            subject = $"Order {error.RequestID} is not cancellable";
+                            body = $"[{error.Level} {error.ErrorCode}] {error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}";
+                            orderExecutor.StopTradingStrategyForOrder(error.RequestID, $"{error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}");
+                            break;
+                        case 200:
+                            MarketDataRequest requestDetails = marketDataProvider?.GetRequestDetails(error.RequestID);
+                            if (requestDetails != null)
+                                body = $"[{error.Level} {error.ErrorCode}] No security definition has been found for the request {requestDetails}";
+                            break;
+                        case 201:
+                            subject = $"Order {error.RequestID} was rejected";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                            break;
+                        case 202:
+                            subject = $"Order {error.RequestID} was cancelled";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                            break;
+                        case 1100:
+                        case 1102:
+                            subject = error.ErrorCodeDescription;
+                            break;
+                        case 2103:
+                        case 2105:
+                            subject = error.ErrorCodeDescription;
+                            // Market data connection lost
+                            StartTwsRestartTimer();
+                            break;
+                        case 2104:
+                        case 2106:
+                            // Market data connection resumed
+                            subject = error.ErrorCodeDescription;
+                            TerminateTwsRestartTimer();
+                            break;
+                        default:
+                            break;
+                    }
+                    #endregion
 
-                if (error.RelayToMonitoringInterface)
-                    AlertReceived?.Invoke(new Alert(error.Level, clientName, subject, body));
-                else
-                    logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");
+                    switch (error.Level)
+                    {
+                        case AlertLevel.DEBUG:
+                            logger.Debug($"{clientName}: {body}");
+                            break;
+                        case AlertLevel.INFO:
+                            logger.Info($"{clientName}: {body}");
+                            break;
+                        case AlertLevel.WARNING:
+                            logger.Warn($"{clientName}: {body}");
+                            break;
+                        case AlertLevel.ERROR:
+                            logger.Error($"{clientName}: {body}");
+                            break;
+                        case AlertLevel.FATAL:
+                            logger.Fatal($"{clientName}: {body}");
+                            break;
+                        default:
+                            break;
+                    }
+
+                    if (error.RelayToMonitoringInterface)
+                        AlertReceived?.Invoke(new Alert(error.Level, clientName, subject, body));
+                    else
+                        logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Failed to process IB error", ex);
             }
         }
 
