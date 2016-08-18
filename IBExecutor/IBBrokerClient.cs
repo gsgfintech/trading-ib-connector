@@ -248,8 +248,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 if (error != null)
                 {
-                    string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (request {error.RequestID})";
-                    string body = error.ToString();
+                    MarketDataRequest requestDetails = null;
+
+                    string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (IB-{error.ErrorCode})";
+                    string body = error.ErrorMessage;
 
                     #region Additional action handlers for specific errors
                     switch (error.ErrorCode)
@@ -274,9 +276,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             orderExecutor.StopTradingStrategyForOrder(error.RequestID, $"{error.ErrorCodeDescription} {error.ErrorMessage?.Split('=').LastOrDefault()}, order ID: {error.RequestID}");
                             break;
                         case 200:
-                            MarketDataRequest requestDetails = marketDataProvider?.GetRequestDetails(error.RequestID);
+                        case 300:
+                            subject = $"Failed MD request {error.RequestID}";
+                            requestDetails = marketDataProvider?.GetRequestDetails(error.RequestID);
                             if (requestDetails != null)
-                                body = $"[{error.Level} {error.ErrorCode}] No security definition has been found for the request {requestDetails}";
+                                body = $"No security definition found for request {requestDetails}";
                             break;
                         case 201:
                             subject = $"Order {error.RequestID} was rejected";

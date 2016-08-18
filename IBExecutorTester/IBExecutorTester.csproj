@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Net.Teirlinck.FX.InteractiveBrokersAPI.Executor</RootNamespace>
     <AssemblyName>IBExecutorTester</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -69,12 +69,12 @@
       <HintPath>..\packages\MongoDB.Driver.Core.2.2.4\lib\net45\MongoDB.Driver.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.Data, Version=1.48.3.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.48.3\lib\V4.6.1\Net.Teirlinck.FX.Data.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.Data, Version=1.48.11.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.48.11\lib\net4.6.2\Net.Teirlinck.FX.Data.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.FXTradingMongoConnector, Version=6.1.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.6.1.1\lib\V4.6.1\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.FXTradingMongoConnector, Version=6.1.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.6.1.2\lib\net4.6.2\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Net.Teirlinck.Utils, Version=1.9.1.0, Culture=neutral, processorArchitecture=MSIL">
