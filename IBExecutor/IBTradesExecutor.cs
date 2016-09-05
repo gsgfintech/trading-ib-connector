@@ -94,7 +94,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     execution.RealizedPnlPips = CrossUtils.ConvertToFractionalPips(execution.RealizedPnL.Value / (double)execution.Quantity, execution.Cross);
 
-                    DateTime? previousTrade = GetPreviousExecutionTimeForCross(execution.Cross);
+                    DateTimeOffset? previousTrade = GetPreviousExecutionTimeForCross(execution.Cross);
                     if (previousTrade.HasValue)
                         execution.TradeDuration = execution.ExecutionTime.Subtract(previousTrade.Value).ToString();
                 }
@@ -116,7 +116,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             execution.OrderOrigin = order?.Origin ?? OrderOrigin.Unknown;
         }
 
-        private DateTime? GetPreviousExecutionTimeForCross(Cross cross)
+        private DateTimeOffset? GetPreviousExecutionTimeForCross(Cross cross)
         {
             return Trades?.LastOrDefault(exec => exec.Cross == cross)?.ExecutionTime;
         }

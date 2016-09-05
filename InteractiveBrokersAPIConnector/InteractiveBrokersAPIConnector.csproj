@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Net.Teirlinck.FX.InteractiveBrokersAPI</RootNamespace>
     <AssemblyName>Net.Teirlinck.FX.IBAPIConnector</AssemblyName>
-    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -35,12 +35,12 @@
       <HintPath>..\packages\log4net.2.0.5\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.FX.Data, Version=1.48.11.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.48.11\lib\net4.6.2\Net.Teirlinck.FX.Data.dll</HintPath>
+    <Reference Include="Net.Teirlinck.FX.Data, Version=1.49.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.FX.Data.1.49.2\lib\net46\Net.Teirlinck.FX.Data.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.Utils, Version=1.9.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.Utils.1.9.1\lib\V4.6.1\Net.Teirlinck.Utils.dll</HintPath>
+    <Reference Include="Net.Teirlinck.Utils, Version=1.10.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.Utils.1.10.1\lib\net46\Net.Teirlinck.Utils.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
