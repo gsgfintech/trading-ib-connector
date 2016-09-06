@@ -47,8 +47,8 @@
       <HintPath>..\packages\Capital.GSG.FX.MonitoringAppConnector.1.9.0\lib\net46\Capital.GSG.FX.MonitoringAppConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.6.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.6.1.0\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.7.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Trading.Executor.4.7.1\lib\net46\Capital.GSG.FX.Trading.Executor.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="IBData.Service.Connector, Version=1.0.1.0, Culture=neutral, processorArchitecture=MSIL">
@@ -79,8 +79,8 @@
       <HintPath>..\packages\Net.Teirlinck.FX.FXTradingMongoConnector.6.1.5\lib\net46\Net.Teirlinck.FX.FXTradingMongoConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Net.Teirlinck.Utils, Version=1.10.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Net.Teirlinck.Utils.1.10.1\lib\net46\Net.Teirlinck.Utils.dll</HintPath>
+    <Reference Include="Net.Teirlinck.Utils, Version=1.10.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Net.Teirlinck.Utils.1.10.2\lib\net46\Net.Teirlinck.Utils.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
