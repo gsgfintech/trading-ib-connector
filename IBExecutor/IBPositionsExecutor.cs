@@ -130,7 +130,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else
                 {
-                    position = new Position("IB", account, DateTime.Now);
+                    position = new Position(Broker.IB, account, DateTimeOffset.Now);
 
                     PositionSecurity security = new PositionSecurity()
                     {
