@@ -55,7 +55,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private List<int> ordersPlaced = new List<int>();
         private ConcurrentQueue<int> ordersToCancelQueue = new ConcurrentQueue<int>();
         private List<int> ordersCancelled = new List<int>();
-        private ConcurrentDictionary<int, DateTime> ordersAwaitingPlaceConfirmation = new ConcurrentDictionary<int, DateTime>();
+        private ConcurrentDictionary<int, DateTimeOffset> ordersAwaitingPlaceConfirmation = new ConcurrentDictionary<int, DateTimeOffset>();
         private Timer ordersAwaitingPlaceConfirmationTimer = null;
 
         internal async Task RequestNextValidOrderID()
@@ -192,18 +192,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void OrdersAwaitingPlaceConfirmationCb(object state)
         {
-            Dictionary<int, DateTime> toCheck = ordersAwaitingPlaceConfirmation.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            Dictionary<int, DateTimeOffset> toCheck = ordersAwaitingPlaceConfirmation.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
             if (!toCheck.IsNullOrEmpty())
             {
                 foreach (var kvp in toCheck)
                 {
-                    if (DateTime.Now.Subtract(kvp.Value) > TimeSpan.FromSeconds(30))
+                    if (DateTimeOffset.Now.Subtract(kvp.Value) > TimeSpan.FromSeconds(30))
                     {
                         string err = $"Order {kvp.Key} has been awaiting confirmation for more than 30 seconds ({kvp.Value}). Requesting to cancel it and mark it as such";
                         logger.Error(err);
 
-                        DateTime discarded;
+                        DateTimeOffset discarded;
                         if (ordersAwaitingPlaceConfirmation.TryRemove(kvp.Key, out discarded))
                         {
                             SendError($"Unconfirmed order {kvp.Key}", err);
@@ -243,9 +243,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     order.Contract = contract;
                     order.Cross = contract?.Cross ?? Cross.UNKNOWN;
                     order.WarningMessage = orderState?.WarningMessage;
-                    order.LastUpdateTime = DateTime.Now;
+                    order.LastUpdateTime = DateTimeOffset.Now;
                     order.Status = status != OrderStatusCode.UNKNOWN ? status : Submitted;
-                    order.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = order.Status });
+                    order.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = order.PermanentID, Timestamp = DateTimeOffset.Now, Status = order.Status });
 
                     return order;
                 }
@@ -254,14 +254,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     logger.Info($"Retrieved information on order {orderId} from the database");
 
                     existingOrder.WarningMessage = orderState?.WarningMessage;
-                    existingOrder.LastUpdateTime = DateTime.Now;
+                    existingOrder.LastUpdateTime = DateTimeOffset.Now;
 
                     if (status != OrderStatusCode.UNKNOWN)
                     {
                         existingOrder.Status = status;
 
                         if (existingOrder.History.LastOrDefault()?.Status != status)
-                            existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = status });
+                            existingOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = order.PermanentID, Timestamp = DateTimeOffset.Now, Status = status });
                     }
 
                     return existingOrder;
@@ -271,14 +271,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Updating order {orderId} in the list");
 
                 order.WarningMessage = orderState?.WarningMessage;
-                oldValue.LastUpdateTime = DateTime.Now;
+                oldValue.LastUpdateTime = DateTimeOffset.Now;
 
                 if (status != OrderStatusCode.UNKNOWN)
                 {
                     oldValue.Status = status;
 
                     if (oldValue.History.LastOrDefault()?.Status != status)
-                        oldValue.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = status });
+                        oldValue.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = order.PermanentID, Timestamp = DateTimeOffset.Now, Status = status });
                 }
 
                 return oldValue;
@@ -287,10 +287,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void RemoveOrderFromAwaitingConfirmationList(int orderId)
         {
-            DateTime timestamp;
+            DateTimeOffset timestamp;
             if (ordersAwaitingPlaceConfirmation.TryRemove(orderId, out timestamp))
             {
-                TimeSpan duration = DateTime.Now.Subtract(timestamp);
+                TimeSpan duration = DateTimeOffset.Now.Subtract(timestamp);
                 logger.Debug($"Removed order {orderId} from the ordersAwaitingPlaceConfirmation list. Confirmation took {duration.TotalMilliseconds}ms");
             }
         }
@@ -343,18 +343,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     newOrder.PermanentID = permId;
                     newOrder.ParentOrderID = parentId;
                     newOrder.ClientID = clientId;
-                    newOrder.LastUpdateTime = DateTime.Now;
+                    newOrder.LastUpdateTime = DateTimeOffset.Now;
 
                     newOrder.Status = status ?? Submitted;
 
                     if (status == Submitted)
-                        newOrder.PlacedTime = DateTime.Now;
+                        newOrder.PlacedTime = DateTimeOffset.Now;
                     else if (status == Filled)
                         newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
 
                     newOrder.WarningMessage = whyHeld;
 
-                    newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = newOrder.Status });
+                    newOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = newOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
 
                     return newOrder;
                 }
@@ -363,14 +363,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     logger.Info($"Retrieved information on order {orderId} from the database");
 
                     existingOrder.PermanentID = permId;
-                    existingOrder.LastUpdateTime = DateTime.Now;
+                    existingOrder.LastUpdateTime = DateTimeOffset.Now;
 
                     if (status.HasValue)
                     {
                         existingOrder.Status = status.Value;
 
                         if (existingOrder.History.LastOrDefault()?.Status != status.Value)
-                            existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTime.Now, Status = existingOrder.Status });
+                            existingOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = existingOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = existingOrder.Status });
                     }
 
                     if (status == Filled)
@@ -393,13 +393,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     oldValue.Status = status.Value;
 
                     if (oldValue.History.LastOrDefault()?.Status != status.Value)
-                        oldValue.History.Add(new OrderHistoryPoint() { Status = status.Value, Timestamp = DateTime.Now });
+                        oldValue.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = oldValue.PermanentID, Timestamp = DateTimeOffset.Now, Status = status.Value });
                 }
 
                 if (status == Filled)
                     oldValue.FillPrice = avgFillPrice ?? lastFillPrice;
 
-                oldValue.LastUpdateTime = DateTime.Now;
+                oldValue.LastUpdateTime = DateTimeOffset.Now;
 
                 return oldValue;
             });
@@ -632,15 +632,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Origin = origin,
                 TransmitOrder = true,
                 Status = PreSubmitted,
-                History = new List<OrderHistoryPoint>() {
-                    new OrderHistoryPoint()
-                    {
-                        Status = PreSubmitted,
-                        Timestamp = DateTime.Now
-                    }
-                },
-                LastUpdateTime = DateTime.Now,
-                PlacedTime = DateTime.Now,
+                History = new List<OrderHistoryPoint>(),
+                LastUpdateTime = DateTimeOffset.Now,
+                PlacedTime = DateTimeOffset.Now,
                 UsdQuantity = await GetUSDQuantity(cross, quantity),
                 Strategy = new OrderStrategy() { Name = strategyName, Version = strategyVersion }
             };
