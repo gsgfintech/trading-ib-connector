@@ -15,6 +15,7 @@ using Net.Teirlinck.FX.Data.OrderData;
 using Capital.GSG.FX.IBControllerServiceConnector;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.IBData.Service.Connector;
+using Net.Teirlinck.FX.Data.ContractData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -110,7 +111,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             statusUpdateTimer = new Timer(state => SendStatusUpdate(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
         }
 
-        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks)
+        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks, IEnumerable<Contract> ibContracts)
         {
             if (clientConfig == null)
                 throw new ArgumentNullException(nameof(clientConfig));
@@ -217,18 +218,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
 
-            await _instance.SetupExecutors(mongoDBServer, fxConverter, mdConnector, tradingAccount, logTicks, stopRequestedCt);
+            await _instance.SetupExecutors(mongoDBServer, fxConverter, mdConnector, tradingAccount, logTicks, stopRequestedCt, ibContracts);
 
             return _instance;
         }
 
-        private async Task SetupExecutors(MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt)
+        private async Task SetupExecutors(MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
         {
             if (brokerClientType != IBrokerClientType.MarketData)
             {
                 logger.Info("Setting up orders executor, positions executor and trades executor");
 
-                orderExecutor = await IBOrderExecutor.SetupOrderExecutor(this, ibClient, mongoDBServer, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
+                orderExecutor = IBOrderExecutor.SetupOrderExecutor(this, ibClient, mongoDBServer, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, ibContracts, stopRequestedCt);
                 positionExecutor = IBPositionsExecutor.SetupIBPositionsExecutor(ibClient, tradingAccount, fxConverter, stopRequestedCt);
                 tradesExecutor = new IBTradesExecutor(this, ibClient, fxConverter, stopRequestedCt);
             }

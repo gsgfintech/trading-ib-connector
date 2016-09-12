@@ -176,11 +176,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersAwaitingPlaceConfirmationTimer = new Timer(OrdersAwaitingPlaceConfirmationCb, null, 5500, 2000);
         }
 
-        internal static async Task<IBOrderExecutor> SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        internal static IBOrderExecutor SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, IEnumerable<Contract> ibContracts, CancellationToken stopRequestedCt)
         {
             _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
 
-            await _instance.LoadContracts();
+            _instance.LoadContracts(ibContracts);
 
             _instance.StartOrdersPlacingQueue();
             _instance.StartOrdersCancellingQueue();
@@ -567,14 +567,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }, stopRequestedCt);
         }
 
-        private async Task LoadContracts()
+        private void LoadContracts(IEnumerable<Contract> ibContracts)
         {
-            logger.Debug("Loading contracts");
-
-            List<Contract> list = await mongoDBServer.ContractActioner.GetAll(stopRequestedCt);
-
-            if (!list.IsNullOrEmpty())
-                contracts = list.Distinct(ContractCrossEqualityComparer.Instance)?.ToDictionary(c => c.Cross, c => c);
+            if (!ibContracts.IsNullOrEmpty())
+                contracts = ibContracts.Distinct(ContractCrossEqualityComparer.Instance)?.ToDictionary(c => c.Cross, c => c);
             else
                 contracts = new Dictionary<Cross, Contract>();
 
