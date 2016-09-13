@@ -5,7 +5,6 @@ using Net.Teirlinck.FX.Data.OrderData;
 using static Net.Teirlinck.FX.Data.OrderData.OrderSide;
 using static Net.Teirlinck.FX.Data.OrderData.OrderStatusCode;
 using static Net.Teirlinck.FX.Data.OrderData.OrderType;
-using Net.Teirlinck.FX.FXTradingMongoConnector;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,6 +18,7 @@ using Net.Teirlinck.FX.Data.MarketData;
 using Net.Teirlinck.FX.Data.System;
 using Capital.GSG.FX.Trading.Executor;
 using Capital.GSG.FX.FXConverter;
+using Capital.GSG.FX.AzureTableConnector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -33,7 +33,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly BrokerClient brokerClient;
         private readonly IFxConverter fxConverter;
         private readonly IBClient ibClient;
-        private readonly MongoDBServer mongoDBServer;
+        private readonly AzureTableClient azureTableClient;
         private readonly MDConnector mdConnector;
         private readonly ITradingExecutorRunner tradingExecutorRunner;
 
@@ -135,7 +135,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 throw new ArgumentException($"There is no contract information for {cross}");
         }
 
-        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, AzureTableClient azureTableClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -143,8 +143,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ibClient == null)
                 throw new ArgumentNullException(nameof(ibClient));
 
-            if (mongoDBServer == null)
-                throw new ArgumentNullException(nameof(mongoDBServer));
+            if (azureTableClient == null)
+                throw new ArgumentNullException(nameof(azureTableClient));
 
             if (fxConverter == null)
                 throw new ArgumentNullException(nameof(fxConverter));
@@ -167,7 +167,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 RequestOpenOrders();
             };
 
-            this.mongoDBServer = mongoDBServer;
+            this.azureTableClient = azureTableClient;
             this.fxConverter = fxConverter;
             this.mdConnector = mdConnector;
             this.tradingExecutorRunner = tradingExecutorRunner;
@@ -176,9 +176,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersAwaitingPlaceConfirmationTimer = new Timer(OrdersAwaitingPlaceConfirmationCb, null, 5500, 2000);
         }
 
-        internal static IBOrderExecutor SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, MongoDBServer mongoDBServer, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, IEnumerable<Contract> ibContracts, CancellationToken stopRequestedCt)
+        internal static IBOrderExecutor SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, AzureTableClient azureTableClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, IEnumerable<Contract> ibContracts, CancellationToken stopRequestedCt)
         {
-            _instance = new IBOrderExecutor(brokerClient, ibClient, mongoDBServer, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
+            _instance = new IBOrderExecutor(brokerClient, ibClient, azureTableClient, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
 
             _instance.LoadContracts(ibContracts);
 
@@ -231,7 +231,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             order = orders.AddOrUpdate(orderId, (key) =>
             {
                 // Try to load order information from the database
-                Task<Order> orderFetchTask = mongoDBServer.OrderActioner.Get(order.PermanentID, stopRequestedCt);
+                Task<Order> orderFetchTask = azureTableClient.OrderActioner.GetOrderByPermanentId(order.PermanentID, stopRequestedCt);
                 orderFetchTask.Wait();
 
                 Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
@@ -329,7 +329,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Order order = orders.AddOrUpdate(orderId, (id) =>
             {
                 // Try to load order information from the database
-                Task<Order> orderFetchTask = mongoDBServer.OrderActioner.Get(permId, stopRequestedCt);
+                Task<Order> orderFetchTask = azureTableClient.OrderActioner.GetOrderByPermanentId(permId, stopRequestedCt);
                 orderFetchTask.Wait();
 
                 Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
@@ -407,7 +407,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (order.PermanentID > 0)
             {
                 logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
-                mongoDBServer.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
+                azureTableClient.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
             }
             else if (order.PermanentID == -1)
                 logger.Debug($"Not adding/updating order {order.OrderID} in database: its permanent ID is -1, which means that the order was marked as cancelled after failing at IB");

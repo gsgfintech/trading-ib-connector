@@ -14,11 +14,12 @@ using Net.Teirlinck.FX.Data.OrderData;
 using System.Linq;
 using Capital.GSG.FX.Trading.Executor;
 using Capital.GSG.FX.MonitoringAppConnector;
-using Net.Teirlinck.FX.FXTradingMongoConnector;
 using System.Collections.Concurrent;
 using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.FXConverterServiceConnector;
+using Capital.GSG.FX.AzureTableConnector;
+using Net.Teirlinck.FX.Data.AccountPortfolio;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -26,7 +27,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
     {
         private static ILog logger = LogManager.GetLogger(nameof(Program));
 
-        private static MongoDBServer mongoDBServer = null;
+        private static AzureTableClient azureTableClient = null;
 
         private static IFxConverter fxConverter;
         private static PositionsConnector positionsConnector;
@@ -53,27 +54,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Dictionary<string, object> brokerClientConfig = new Dictionary<string, object>() {
                 { "Name", "IB_MDClient_Test" },
                 { "ClientNumber", 7 },
-                { "Host", "gsg-dev-1.gsg.capital" },
+                { "Host", "tryphon.gsg.capital" },
                 { "Port", 7497 },
                 { "IBControllerPort", 7463 },
-                { "IBControllerServiceEndpoint", "https://gsg-dev-1.gsg.capital:6583" },
+                { "IBControllerServiceEndpoint", "https://tryphon.gsg.capital:6583" },
                 { "IBControllerServiceAppName", "TwsPaper" },
                 { "TradingAccount", "DU215795" }
             };
 
-            string mongoDBHost = "tryphon.gsg.capital";
-            int mongoDBPort = 27020;
-            string mongoDBName = "fxtrading_dev";
             string monitoringEndpoint = "http://localhost:51468/";
-            string convertServiceEndpoint = "https://gsg-dev-1.gsg.capital:6580";
+            string convertServiceEndpoint = "https://tryphon.gsg.capital:6580";
             string marketDataServiceEndpoint = "https://tryphon.gsg.capital:6581";
+            string azureTableConnectionString = "UseDevelopmentStorage=true;";
 
             logger.Info("Starting service IBExecutorTester");
 
             logger.Debug($"BrokerClientConfigId: {brokerClientConfig}");
-            logger.Debug($"MongoDBHost: {mongoDBHost}");
-            logger.Debug($"MongoDBPort: {mongoDBPort}");
-            logger.Debug($"MongoDBName: {mongoDBName}");
             logger.Debug($"MonitoringEndpoint: {monitoringEndpoint}");
             logger.Debug($"ConvertServiceEndpoint: {convertServiceEndpoint}");
             logger.Debug($"MDConnector: {marketDataServiceEndpoint}");
@@ -84,20 +80,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersConnector = OrdersConnector.GetConnector(monitoringEndpoint);
             mdConnector = MDConnector.GetConnector(marketDataServiceEndpoint);
 
-            mongoDBServer = MongoDBServer.CreateServer(mongoDBName, mongoDBHost, mongoDBPort);
-
-            Do(brokerClientConfig, mongoDBHost, mongoDBPort, mongoDBName).Wait();
+            Do(brokerClientConfig, azureTableConnectionString).Wait();
         }
 
-        private static async Task Do(Dictionary<string, object> brokerClientConfig, string mongoDBHost, int mongoDBPort, string mongoDBName)
+        private static async Task Do(Dictionary<string, object> brokerClientConfig, string azureTableConnectionString)
         {
             try
             {
+                azureTableClient = await AzureTableClient.GetAzureTableClient(azureTableConnectionString);
+
                 IBTestTradingExecutorRunner tradingExecutorRunner = new IBTestTradingExecutorRunner();
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, mongoDBServer, fxConverter, mdConnector, null, stopRequestedCts.Token, false, null);
+                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, azureTableClient, fxConverter, mdConnector, null, stopRequestedCts.Token, false, null);
                 ((BrokerClient)brokerClient).StopComplete += (() => stopCompleteEvent.Set());
                 ((BrokerClient)brokerClient).AlertReceived += (alert) =>
                 {
@@ -205,7 +201,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             CancellationTokenSource cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            await mongoDBServer?.OrderActioner.AddOrUpdate(order, ct: cts.Token);
+            await azureTableClient?.OrderActioner.AddOrUpdate(order, ct: cts.Token);
 
             await ordersConnector?.PostOrder(order, ct: cts.Token);
         }
@@ -218,13 +214,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             CancellationTokenSource cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            await mongoDBServer?.AccountActioner.InsertOrUpdate(account, ct: cts.Token);
+            await azureTableClient?.AccountActioner.AddOrUpdate(account, ct: cts.Token);
         }
 
         private static async Task<Dictionary<Cross, Contract>> GetContracts(string mongoDBHost, int mongoDBPort, string mongoDBName)
         {
-            Contract eurContract = await mongoDBServer?.ContractActioner.GetByCross(EURUSD);
-            Contract chfContract = await mongoDBServer?.ContractActioner.GetByCross(USDHKD);
+            Contract eurContract = await azureTableClient?.ContractActioner.GetContractByCrossAndBroker(EURUSD, Broker.IB);
+            Contract chfContract = await azureTableClient?.ContractActioner.GetContractByCrossAndBroker(USDHKD, Broker.IB);
 
             Dictionary<Cross, Contract> contracts = new Dictionary<Cross, Contract>();
             contracts.Add(EURUSD, eurContract);
@@ -240,7 +236,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             CancellationTokenSource cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            await mongoDBServer?.ExecutionActioner.Insert(execution, cts.Token);
+            await azureTableClient?.ExecutionActioner.AddOrUpdate(execution, cts.Token);
 
             await executionsConnector?.PostNewExecution(execution, ct: cts.Token);
         }
@@ -339,7 +335,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 Console.WriteLine(position);
 
-                await mongoDBServer?.PositionActioner.Insert(position, cts.Token);
+                await azureTableClient?.PositionActioner.AddOrUpdate(position, cts.Token);
 
                 lock (locker)
                 {

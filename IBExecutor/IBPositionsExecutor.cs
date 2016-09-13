@@ -189,7 +189,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (existing != null)
                     existing.Value = value;
                 else
-                    Accounts[accountSubscribed].Attributes.Add(new AccountAttribute() { Broker = Broker.IB, AccountName = accountSubscribed, Currency = currency, Key = key, Value = value });
+                    Accounts[accountSubscribed].Attributes.Add(new AccountAttribute() { Currency = currency, Key = key, Value = value });
 
                 AccountUpdated?.Invoke(Accounts[accountSubscribed]);
             }
