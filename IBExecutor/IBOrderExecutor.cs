@@ -218,7 +218,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void ResponseManager_OpenOrdersReceived(int orderId, Contract contract, Order order, OrderState orderState)
         {
-            logger.Info($"Received notification of open order: {orderId}");
+            logger.Info($"Received notification of open order: {orderId} (perm ID: {order.PermanentID})");
+
+            if (order.PermanentID <= 0)
+            {
+                string err = $"Order {orderId} has a permanent ID of {order.PermanentID}. This is unexpected. Not processing open order notification";
+                logger.Error(err);
+
+                SendError("Order with invalid permanent ID", err);
+
+                return;
+            }
 
             RemoveOrderFromAwaitingConfirmationList(orderId);
 
@@ -311,10 +321,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             if (permId == 0)
             {
-                string err = $"Order {orderId} has a permanent ID of 0. This is unexpected. Not processing order update";
+                string err = $"Received an update for order {orderId} with permId of 0. This is unexpected. Not processing order update";
                 logger.Error(err);
 
-                SendError("Order with invalid permanent ID", err);
+                SendError("Order update with invalid permanent ID", err);
 
                 return;
             }
@@ -328,64 +338,69 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             // 3. Add or update the order for tracking
             Order order = orders.AddOrUpdate(orderId, (id) =>
             {
-                // Try to load order information from the database
-                Task<Order> orderFetchTask = azureTableClient.OrderActioner.GetOrderByPermanentId(permId, stopRequestedCt);
-                orderFetchTask.Wait();
-
-                Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
-
-                if (existingOrder == null)
+                if (permId > 0)
                 {
-                    logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
+                    // Try to load order information from the database
+                    Task<Order> orderFetchTask = azureTableClient.OrderActioner.GetOrderByPermanentId(permId, stopRequestedCt);
+                    orderFetchTask.Wait();
 
-                    Order newOrder = new Order();
-                    newOrder.OrderID = orderId;
-                    newOrder.PermanentID = permId;
-                    newOrder.ParentOrderID = parentId;
-                    newOrder.ClientID = clientId;
-                    newOrder.LastUpdateTime = DateTimeOffset.Now;
+                    Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
 
-                    newOrder.Status = status ?? Submitted;
+                    if (existingOrder == null)
+                    {
+                        logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
 
-                    if (status == Submitted)
-                        newOrder.PlacedTime = DateTimeOffset.Now;
-                    else if (status == Filled)
-                        newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
+                        Order newOrder = new Order();
+                        newOrder.OrderID = orderId;
+                        newOrder.PermanentID = permId;
+                        newOrder.ParentOrderID = parentId;
+                        newOrder.ClientID = clientId;
+                        newOrder.LastUpdateTime = DateTimeOffset.Now;
 
-                    newOrder.WarningMessage = whyHeld;
+                        newOrder.Status = status ?? Submitted;
 
-                    newOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = newOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
+                        if (status == Submitted)
+                            newOrder.PlacedTime = DateTimeOffset.Now;
+                        else if (status == Filled)
+                            newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
 
-                    return newOrder;
+                        newOrder.WarningMessage = whyHeld;
+
+                        newOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = newOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
+
+                        return newOrder;
+                    }
+                    else
+                    {
+                        logger.Info($"Retrieved information on order {orderId} from the database");
+
+                        existingOrder.PermanentID = permId;
+                        existingOrder.LastUpdateTime = DateTimeOffset.Now;
+
+                        if (status.HasValue)
+                        {
+                            existingOrder.Status = status.Value;
+
+                            if (existingOrder.History.LastOrDefault()?.Status != status.Value)
+                                existingOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = existingOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = existingOrder.Status });
+                        }
+
+                        if (status == Filled)
+                            existingOrder.FillPrice = avgFillPrice ?? lastFillPrice;
+
+                        existingOrder.WarningMessage = whyHeld;
+
+                        return existingOrder;
+                    }
                 }
                 else
-                {
-                    logger.Info($"Retrieved information on order {orderId} from the database");
-
-                    existingOrder.PermanentID = permId;
-                    existingOrder.LastUpdateTime = DateTimeOffset.Now;
-
-                    if (status.HasValue)
-                    {
-                        existingOrder.Status = status.Value;
-
-                        if (existingOrder.History.LastOrDefault()?.Status != status.Value)
-                            existingOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = existingOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = existingOrder.Status });
-                    }
-
-                    if (status == Filled)
-                        existingOrder.FillPrice = avgFillPrice ?? lastFillPrice;
-
-                    existingOrder.WarningMessage = whyHeld;
-
-                    return existingOrder;
-                }
+                    return null;
             },
             (key, oldValue) =>
             {
                 logger.Info($"Received update notification for order {orderId} ({status})");
 
-                if (permId > 0)
+                if (permId > 0 && oldValue.PermanentID == 0)
                     oldValue.PermanentID = permId;
 
                 if (status.HasValue)
@@ -409,14 +424,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
                 azureTableClient.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
             }
-            else if (order.PermanentID == -1)
-                logger.Debug($"Not adding/updating order {order.OrderID} in database: its permanent ID is -1, which means that the order was marked as cancelled after failing at IB");
             else
-            {
-                string err = $"Unable to add/update order {order.OrderID} in database: the permanent ID is invalid ({order.PermanentID})";
-                logger.Error(err);
-                SendError($"Unable to add/update order {order.OrderID}", err);
-            }
+                logger.Debug($"Not adding/updating order {order.OrderID} in database: its permanent ID is {order.PermanentID}, which means that the order was marked as cancelled after failing at IB");
 
             brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
             OrderUpdated?.Invoke(order);
