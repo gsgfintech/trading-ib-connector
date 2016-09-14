@@ -9,7 +9,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public event Action<string> AccountDownloaded;
         public event Action<int, string, string, string, string> AccountSummaryReceived;
         public event Action<int> AccountSummaryEnded;
-        public event Action<DateTime> AccountUpdateTimeReceived;
+        public event Action<DateTimeOffset> AccountUpdateTimeReceived;
         public event Action<string, string, Currency, string> AccountValueUpdated;
         public event Action<Contract, int, double, double, double, double, double, string> PortfolioUpdated;
         public event Action<string, Contract, double, double> PositionReceived;
@@ -52,7 +52,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="timestamp">The last update system time</param>
         public void updateAccountTime(string timestamp)
         {
-            AccountUpdateTimeReceived?.Invoke(DateTime.Parse(timestamp));
+            AccountUpdateTimeReceived?.Invoke(new DateTimeOffset(DateTime.Parse(timestamp), new TimeSpan(0, 0, 0)));
         }
 
         /// <summary>

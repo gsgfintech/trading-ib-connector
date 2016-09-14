@@ -239,7 +239,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info("Setting up market data provider and news bulletins provider");
 
                 marketDataProvider = await IBMarketDataProvider.SetupIBMarketDataProvider(this, ibClient, ibDataServiceEndpoint, logTicks, stopRequestedCt);
-                newsBulletinProvider = new IBNewsBulletinProvider(ibClient);
+                newsBulletinProvider = new IBNewsBulletinProvider(ibClient, azureTableClient, stopRequestedCt);
             }
         }
 

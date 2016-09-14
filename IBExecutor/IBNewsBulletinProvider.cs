@@ -2,6 +2,8 @@
 using System;
 using Net.Teirlinck.FX.Data.NewsBulletinData;
 using log4net;
+using Capital.GSG.FX.AzureTableConnector;
+using System.Threading;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -10,12 +12,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private static ILog logger = LogManager.GetLogger(nameof(IBNewsBulletinProvider));
 
         private readonly IBClient ibClient;
+        private readonly AzureTableClient azureTableClient;
+
+        private readonly CancellationToken stopRequestedCt;
 
         public event Action<NewsBulletin> NewBulletinReceived;
 
-        public IBNewsBulletinProvider(IBClient ibClient)
+        public IBNewsBulletinProvider(IBClient ibClient, AzureTableClient azureTableClient, CancellationToken stopRequestedCt)
         {
             this.ibClient = ibClient;
+            this.stopRequestedCt = stopRequestedCt;
+            this.azureTableClient = azureTableClient;
 
             this.ibClient.ResponseManager.NewsBulletinReceived += NewsBulletinReceived;
 
@@ -27,18 +34,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             };
         }
 
-        private void NewsBulletinReceived(int msgId, NewsBulletinType msgType, string message, string origExchange)
+        private async void NewsBulletinReceived(int msgId, NewsBulletinType msgType, string message, string origExchange)
         {
             NewsBulletin bulletin = new NewsBulletin()
             {
                 BulletinType = msgType,
-                Id = msgId,
+                Id = msgId.ToString(),
                 Message = message,
-                OrigExchange = origExchange,
-                Timestamp = DateTime.Now
+                Origin = origExchange,
+                Source = NewsBulletinSource.IB,
+                Status = NewsBulletinStatus.OPEN,
+                Timestamp = DateTimeOffset.Now
             };
 
-            logger.Info($"Received a new news bulletin from IB: {bulletin}");
+            logger.Info($"Received a new news bulletin from IB: {bulletin}. Will save it in database and notify monitoring interface");
+
+            await azureTableClient?.NewsBulletinActioner.AddOrUpdate(bulletin, stopRequestedCt);
 
             NewBulletinReceived?.Invoke(bulletin);
         }

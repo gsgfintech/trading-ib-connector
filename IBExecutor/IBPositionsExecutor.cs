@@ -33,7 +33,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private string accountSubscribed = null;
 
-        private Dictionary<string, Account> Accounts { get; } = new Dictionary<string, Account>();
+        private ConcurrentDictionary<string, Account> accounts = new ConcurrentDictionary<string, Account>();
 
         private IBPositionsExecutor(IBClient ibClient, IFxConverter fxConverter, string tradingAccount, CancellationToken stopRequestedCt)
         {
@@ -180,27 +180,50 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private void ResponseManager_AccountValueUpdated(string key, string value, Currency currency, string account)
+        private void ResponseManager_AccountValueUpdated(string attrKey, string attrValue, Currency currency, string accountName)
         {
-            if (!string.IsNullOrEmpty(accountSubscribed) && Accounts.ContainsKey(accountSubscribed))
+            Account account = accounts.AddOrUpdate(accountSubscribed, new Account()
             {
-                AccountAttribute existing = Accounts[accountSubscribed].Attributes.Where(attr => attr.Key == key).FirstOrDefault();
+                Attributes = new List<AccountAttribute>()
+                    {
+                        new AccountAttribute() { Currency = currency, Key = attrKey, Value = attrValue }
+                    },
+                Broker = Broker.IB,
+                LastUpdate = DateTimeOffset.Now,
+                Name = accountName
+            }, (key, oldValue) =>
+            {
+                AccountAttribute existingAttribute = oldValue.Attributes.SingleOrDefault(attr => attr.Key == attrKey);
 
-                if (existing != null)
-                    existing.Value = value;
+                if (existingAttribute == null)
+                    oldValue.Attributes.Add(new AccountAttribute() { Currency = currency, Key = attrKey, Value = attrValue });
                 else
-                    Accounts[accountSubscribed].Attributes.Add(new AccountAttribute() { Currency = currency, Key = key, Value = value });
+                    existingAttribute.Value = attrValue;
 
-                AccountUpdated?.Invoke(Accounts[accountSubscribed]);
-            }
-            else
-                logger.Error("Received account attribute update, but no account is currently subscribed to. Please check");
+                oldValue.LastUpdate = DateTimeOffset.Now;
+
+                return oldValue;
+            });
+
+            AccountUpdated?.Invoke(account);
         }
 
-        private void ResponseManager_AccountUpdateTimeReceived(DateTime lastUpdate)
+        private void ResponseManager_AccountUpdateTimeReceived(DateTimeOffset lastUpdate)
         {
-            if (!string.IsNullOrEmpty(accountSubscribed) && Accounts.ContainsKey(accountSubscribed))
-                Accounts[accountSubscribed].LastUpdate = lastUpdate;
+            if (!string.IsNullOrEmpty(accountSubscribed))
+            {
+                accounts.AddOrUpdate(accountSubscribed, new Account()
+                {
+                    Attributes = new List<AccountAttribute>(),
+                    Broker = Broker.IB,
+                    LastUpdate = lastUpdate,
+                    Name = accountSubscribed
+                }, (key, oldValue) =>
+                {
+                    oldValue.LastUpdate = lastUpdate;
+                    return oldValue;
+                });
+            }
             else
                 logger.Error("Received account last update time, but no account is currently subscribed to. Please check");
         }
@@ -214,9 +237,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 UnsubcribeAccountUpdates();
 
             logger.Info($"Subscribe to account updates for {accountName}");
-
-            if (!Accounts.ContainsKey(accountName))
-                Accounts.Add(accountName, new Account() { Name = accountName });
 
             ibClient.RequestManager.AccountRequestManager.SubscribeToAccountUpdates(accountName);
 
