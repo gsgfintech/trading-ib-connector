@@ -52,7 +52,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="timestamp">The last update system time</param>
         public void updateAccountTime(string timestamp)
         {
-            AccountUpdateTimeReceived?.Invoke(new DateTimeOffset(DateTime.Parse(timestamp), new TimeSpan(0, 0, 0)));
+            AccountUpdateTimeReceived?.Invoke(DateTimeOffset.Parse(timestamp));
         }
 
         /// <summary>

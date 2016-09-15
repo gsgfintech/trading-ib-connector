@@ -185,9 +185,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Account account = accounts.AddOrUpdate(accountSubscribed, new Account()
             {
                 Attributes = new List<AccountAttribute>()
-                    {
-                        new AccountAttribute() { Currency = currency, Key = attrKey, Value = attrValue }
-                    },
+                {
+                    new AccountAttribute() { Currency = currency, Key = attrKey, Value = attrValue }
+                },
                 Broker = Broker.IB,
                 LastUpdate = DateTimeOffset.Now,
                 Name = accountName

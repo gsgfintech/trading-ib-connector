@@ -59,7 +59,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 { "IBControllerPort", 7463 },
                 { "IBControllerServiceEndpoint", "https://tryphon.gsg.capital:6583" },
                 { "IBControllerServiceAppName", "TwsPaper" },
-                { "TradingAccount", "DU215795" }
+                { "TradingAccount", "DU215795" },
+                { "IBDataServiceEndpoint", "https://tryphon.gsg.capital:6583" }
             };
 
             string monitoringEndpoint = "http://localhost:51468/";
