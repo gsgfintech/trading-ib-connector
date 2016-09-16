@@ -47,8 +47,8 @@
       <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.0.1\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.MonitoringAppConnector, Version=1.9.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.MonitoringAppConnector.1.9.2\lib\net46\Capital.GSG.FX.MonitoringAppConnector.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.MonitoringAppConnector, Version=1.9.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.MonitoringAppConnector.1.9.3\lib\net46\Capital.GSG.FX.MonitoringAppConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.Trading.Executor, Version=4.7.1.0, Culture=neutral, processorArchitecture=MSIL">

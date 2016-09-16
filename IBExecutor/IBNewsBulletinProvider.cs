@@ -40,7 +40,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 BulletinType = msgType,
                 Id = msgId.ToString(),
-                Message = message,
+                Message = message?.Replace("==", ""),
                 Origin = origExchange,
                 Source = NewsBulletinSource.IB,
                 Status = NewsBulletinStatus.OPEN,
