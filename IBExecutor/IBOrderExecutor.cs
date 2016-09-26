@@ -964,7 +964,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<int> UpdateOrderLevel(int orderId, double newLevel, CancellationToken ct = default(CancellationToken))
+        public async Task<int> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
         {
             logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
 
@@ -979,7 +979,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 case LIMIT:
                     // 1. Place new order
-                    int newLimitOrderId = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    int newLimitOrderId = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
 
                     if (newLimitOrderId > -1)
                     {
@@ -995,7 +995,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     return newLimitOrderId;
                 case STOP:
                     // 1. Place new order
-                    int newStopOrderId = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    int newStopOrderId = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
 
                     if (newStopOrderId > -1)
                     {
