@@ -307,6 +307,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             subject = error.ErrorCodeDescription;
                             TerminateTwsRestartTimer();
                             break;
+                        case 10147:
+                            subject = $"Order {error.RequestID} to cancel is invalid";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}";
+                            break;
                         default:
                             break;
                     }
