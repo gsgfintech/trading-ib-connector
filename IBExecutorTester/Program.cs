@@ -244,84 +244,84 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task PlaceTrailingStopOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceTrailingStopOrder(EURUSD, BUY, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("TrailingStopOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
+            Order order1 = await orderExecutor.PlaceTrailingStopOrder(EURUSD, BUY, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("TrailingStopOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceTrailingStopOrder(EURUSD, SELL, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("TrailingStopOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
+            Order order2 = await orderExecutor.PlaceTrailingStopOrder(EURUSD, SELL, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("TrailingStopOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceTrailingMarketIfTouchedOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(EURUSD, BUY, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("TrailingMarketIfTouchedOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
+            Order order1 = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(EURUSD, BUY, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("TrailingMarketIfTouchedOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(EURUSD, SELL, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("TrailingMarketIfTouchedOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
+            Order order2 = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(EURUSD, SELL, 20000, 0.001, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("TrailingMarketIfTouchedOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceMarketOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceMarketOrder(EURUSD, SELL, 20000, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("MarketOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
+            Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, SELL, 20000, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("MarketOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceMarketOrder(EURCHF, SELL, 20000, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("MarketOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
+            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, SELL, 20000, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("MarketOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceLimitOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceLimitOrder(EURUSD, SELL, 20000, 1.125, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("LimitOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
+            Order order1 = await orderExecutor.PlaceLimitOrder(EURUSD, SELL, 20000, 1.125, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("LimitOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("LimitOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
+            Order order2 = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("LimitOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceAndUpdateLimitOrders(IOrderExecutor orderExecutor)
         {
-            int orderId = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Order order = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
 
-            if (orderId > -1)
+            if (order != null)
             {
                 Task.Delay(TimeSpan.FromSeconds(5)).Wait();
-                await orderExecutor.UpdateOrderLevel(orderId, 1.116);
+                await orderExecutor.UpdateOrderLevel(order.OrderID, 1.116);
             }
 
-            Console.WriteLine("LimitOrder2: {0} ({1})", orderId > 0 ? "SUCCESS" : "FAILED", orderId);
+            Console.WriteLine("LimitOrder2: {0} ({1})", order != null ? "SUCCESS" : "FAILED", order);
             Task.Delay(TimeSpan.FromSeconds(1)).Wait();
         }
 
         private static async Task PlaceStopOrders(IOrderExecutor orderExecutor)
         {
-            int order1Id = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("StopOrder1: {0} ({1})", order1Id > 0 ? "SUCCESS" : "FAILED", order1Id);
+            Order order1 = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("StopOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            int order2Id = await orderExecutor.PlaceStopOrder(EURUSD, BUY, 20000, 1.120, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
-            Console.WriteLine("StopOrder2: {0} ({1})", order2Id > 0 ? "SUCCESS" : "FAILED", order2Id);
+            Order order2 = await orderExecutor.PlaceStopOrder(EURUSD, BUY, 20000, 1.120, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Console.WriteLine("StopOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceAndUpdateStopOrders(IOrderExecutor orderExecutor)
         {
-            int orderId = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
+            Order order = await orderExecutor.PlaceStopOrder(EURUSD, SELL, 20000, 1.115, DAY, "IBExecutorTester", "1.0", ct: stopRequestedCts.Token);
 
-            if (orderId > -1)
+            if (order != null)
             {
                 Task.Delay(TimeSpan.FromSeconds(5)).Wait();
-                await orderExecutor.UpdateOrderLevel(orderId, 1.116);
+                await orderExecutor.UpdateOrderLevel(order.OrderID, 1.116);
             }
 
-            Console.WriteLine("StopOrder1: {0} ({1})", orderId > 0 ? "SUCCESS" : "FAILED", orderId);
+            Console.WriteLine("StopOrder1: {0} ({1})", order != null ? "SUCCESS" : "FAILED", order);
             Task.Delay(TimeSpan.FromSeconds(1)).Wait();
         }
 

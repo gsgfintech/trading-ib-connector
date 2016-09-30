@@ -190,7 +190,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return _instance;
         }
 
-        private void OrdersAwaitingPlaceConfirmationCb(object state)
+        private async void OrdersAwaitingPlaceConfirmationCb(object state)
         {
             Dictionary<int, DateTimeOffset> toCheck = ordersAwaitingPlaceConfirmation.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
@@ -207,7 +207,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         if (ordersAwaitingPlaceConfirmation.TryRemove(kvp.Key, out discarded))
                         {
                             SendError($"Unconfirmed order {kvp.Key}", err);
-                            CancelOrder(kvp.Key);
+                            await CancelOrder(kvp.Key);
 
                             OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
                         }
@@ -663,13 +663,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return order;
         }
 
-        public async Task<int> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place limit order as the IB client is not connected");
-
-                return -1;
+                return null;
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
@@ -679,7 +678,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ct.IsCancellationRequested)
             {
                 logger.Error("Not placing order: operation cancelled");
-                return -1;
+                return null;
             }
 
             logger.Info($"Preparing LIMIT order: {side} {quantity} {cross} @ {limitPrice} (TIF: {tif})");
@@ -695,13 +694,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place STOP order as the IB client is not connected");
-
-                return -1;
+                return null;
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
@@ -711,7 +709,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ct.IsCancellationRequested)
             {
                 logger.Error("Not placing order: operation cancelled");
-                return -1;
+                return null;
             }
 
             logger.Info($"Preparing STOP order: {side} {quantity} {cross} @ {stopPrice} (TIF: {tif})");
@@ -727,13 +725,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place MARKET order as the IB client is not connected");
-
-                return -1;
+                return null;
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
@@ -743,7 +740,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ct.IsCancellationRequested)
             {
                 logger.Error("Not placing order: operation cancelled");
-                return -1;
+                return null;
             }
 
             logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
@@ -758,23 +755,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place TRAILING_MARKET_IF_TOUCHED order as the IB client is not connected");
-
-                return -1;
+                return null;
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
-                ct = this.stopRequestedCt;
+                ct = stopRequestedCt;
 
             if (ct.IsCancellationRequested)
             {
                 logger.Error("Not placing order: operation cancelled");
-                return -1;
+                return null;
             }
 
             logger.Info($"Preparing TRAILING_MARKET_IF_TOUCHED order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
@@ -790,13 +786,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        public async Task<int> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategyName, string strategyVersion, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place TRAILING_STOP order as the IB client is not connected");
-
-                return -1;
+                return null;
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
@@ -806,7 +801,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ct.IsCancellationRequested)
             {
                 logger.Error("Not placing order: operation cancelled");
-                return -1;
+                return null;
             }
 
             logger.Info($"Preparing TRAILING_STOP order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
@@ -822,7 +817,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return PlaceOrder(order);
         }
 
-        private int PlaceOrder(Order order)
+        private Order PlaceOrder(Order order)
         {
             lock (ordersToPlaceQueueLocker)
             {
@@ -831,7 +826,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (orderID < 0)
                 {
                     logger.Error("Not placing order: failed to get the next valid order ID");
-                    return -1;
+                    return null;
                 }
 
                 order.OrderID = orderID;
@@ -842,22 +837,23 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
                 ordersToPlaceQueue.Enqueue(order);
 
-                return orderID;
+                return order;
             }
         }
 
-        public bool CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
+        public async Task<bool> CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
         {
+            await Task.CompletedTask;
+
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot cancel order as the IB client is not connected");
-
                 return false;
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
-                ct = this.stopRequestedCt;
+                ct = stopRequestedCt;
 
             if (ct.IsCancellationRequested)
             {
@@ -902,7 +898,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 foreach (int orderId in ordersToCancel)
                 {
-                    CancelOrder(orderId);
+                    await CancelOrder(orderId);
                     await Task.Delay(TimeSpan.FromSeconds(2));
                 }
             }
@@ -949,10 +945,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     OrderSide side = pos.Value > 0 ? SELL : BUY;
 
-                    int orderId = await PlaceMarketOrder(pos.Key, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", "1.0", origin: origin, ct: ct);
+                    Order order = await PlaceMarketOrder(pos.Key, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", "1.0", origin: origin, ct: ct);
 
-                    if (orderId > 0)
-                        logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {orderId})");
+                    if (order != null)
+                        logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {order})");
                     else
                     {
                         logger.Error($"Failed to close position: {pos.Value} {pos.Key}");
@@ -964,7 +960,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<int> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
         {
             logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
 
@@ -972,19 +968,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (!orders.TryGetValue(orderId, out currentOrder))
             {
                 logger.Error($"Order {orderId} is unknown. Unable to update its level");
-                return -1;
+                return null;
             }
 
             switch (currentOrder.Type)
             {
                 case LIMIT:
                     // 1. Place new order
-                    int newLimitOrderId = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
 
-                    if (newLimitOrderId > -1)
+                    if (newLimitOrder != null)
                     {
                         // 2. Cancel original order
-                        if (CancelOrder(orderId, ct))
+                        if (await CancelOrder(orderId, ct))
                             logger.Info($"Successfully cancelled order {orderId}");
                         else
                             logger.Error($"Failed to cancel order {orderId}");
@@ -992,15 +988,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else
                         logger.Error($"Failed to place new limit order. Not cancelling {orderId}");
 
-                    return newLimitOrderId;
+                    return newLimitOrder;
                 case STOP:
                     // 1. Place new order
-                    int newStopOrderId = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    Order newStopOrder = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy?.Name, currentOrder.Strategy?.Version, currentOrder.ParentOrderID, currentOrder.Origin, ct);
 
-                    if (newStopOrderId > -1)
+                    if (newStopOrder != null)
                     {
                         // 2. Cancel original order
-                        if (CancelOrder(orderId, ct))
+                        if (await CancelOrder(orderId, ct))
                             logger.Info($"Successfully cancelled order {orderId}");
                         else
                             logger.Error($"Failed to cancel order {orderId}");
@@ -1008,10 +1004,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else
                         logger.Error($"Failed to place new stop order. Not cancelling {orderId}");
 
-                    return newStopOrderId;
+                    return newStopOrder;
                 default:
                     logger.Error($"Updating the level of orders of type {currentOrder.Type} is not supported");
-                    return -1;
+                    return null;
             }
         }
 
