@@ -186,7 +186,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Cancelled all orders");
 
-                if (await executor.CloseAllPositions(CrossUtils.AllCrosses))
+                if ((await executor.CloseAllPositions(CrossUtils.AllCrosses)) != null)
                     logger.Info("Closed all positions");
                 else
                     logger.Error("Failed to close all positions");

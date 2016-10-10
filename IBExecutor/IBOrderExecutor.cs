@@ -906,7 +906,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return true;
         }
 
-        public async Task<bool> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
+        public async Task<Dictionary<Cross, double?>> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
         {
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
@@ -915,7 +915,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ct.IsCancellationRequested)
             {
                 logger.Error("Not closing positions: operation cancelled");
-                return false;
+                return null;
             }
 
             // 1. Get all open postions
@@ -924,7 +924,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (openPositions.IsNullOrEmpty())
             {
                 logger.Info("No open position. Nothing to close");
-                return true;
+                return null;
             }
             else
             {
@@ -933,11 +933,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (openPositions.IsNullOrEmpty())
                 {
                     logger.Info("No open position. Nothing to close");
-                    return true;
+                    return null;
                 }
 
                 // 2. Place market orders to close all open positions
-                bool allClosed = true;
+                Dictionary<Cross, double?> retVal = new Dictionary<Cross, double?>();
+                List<int> closingOrders = new List<int>();
 
                 foreach (var pos in openPositions)
                 {
@@ -948,15 +949,47 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     Order order = await PlaceMarketOrder(pos.Key, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", "1.0", origin: origin, ct: ct);
 
                     if (order != null)
-                        logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {order})");
-                    else
                     {
-                        logger.Error($"Failed to close position: {pos.Value} {pos.Key}");
-                        allClosed = false;
+                        logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {order})");
+                        closingOrders.Add(order.OrderID);
                     }
+                    else
+                        logger.Error($"Failed to close position: {pos.Value} {pos.Key}");
+
+                    retVal.Add(pos.Key, null);
                 }
 
-                return allClosed;
+                CancellationTokenSource cts = new CancellationTokenSource();
+                cts.CancelAfter(TimeSpan.FromMinutes(1));
+
+                await Task.Run(() =>
+                {
+                    while (closingOrders.Count > 0)
+                    {
+                        List<int> filledOrders = new List<int>();
+
+                        foreach (var orderId in closingOrders)
+                        {
+                            Order order;
+                            if (orders.TryGetValue(orderId, out order) && order.Status == Filled)
+                            {
+                                retVal[order.Cross] = order.FillPrice;
+                                filledOrders.Add(orderId);
+                            }
+                        }
+
+                        if (filledOrders.Count > 0)
+                        {
+                            foreach (var orderId in filledOrders)
+                                closingOrders.Remove(orderId);
+                        }
+
+                        if (filledOrders.Count > 0)
+                            Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+                    }
+                }, cts.Token);
+
+                return retVal;
             }
         }
 
