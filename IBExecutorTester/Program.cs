@@ -90,11 +90,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 azureTableClient = await AzureTableClient.GetAzureTableClient(azureTableConnectionString);
 
+                List<Contract> ibContracts = await azureTableClient.ContractActioner.GetAll();
+
                 IBTestTradingExecutorRunner tradingExecutorRunner = new IBTestTradingExecutorRunner();
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, azureTableClient, fxConverter, mdConnector, null, stopRequestedCts.Token, false, null);
+                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, azureTableClient, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts);
                 ((BrokerClient)brokerClient).StopComplete += (() => stopCompleteEvent.Set());
                 ((BrokerClient)brokerClient).AlertReceived += (alert) =>
                 {
@@ -120,25 +122,25 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //brokerClient.PositionExecutor.AccountUpdated += PositionExecutor_AccountUpdated;
 
                 // Need to throttle position updates, as there are lots of them
-                positionUpdatePosterTimer = new Timer((state) =>
-                {
-                    if (latestPositionsUpdate?.Count() > 0 && !positionUpdatePosted)
-                    {
-                        foreach (Position position in latestPositionsUpdate)
-                            positionsConnector?.PostPosition(position, ct: stopRequestedCts.Token);
+                //positionUpdatePosterTimer = new Timer((state) =>
+                //{
+                //    if (latestPositionsUpdate?.Count() > 0 && !positionUpdatePosted)
+                //    {
+                //        foreach (Position position in latestPositionsUpdate)
+                //            positionsConnector?.PostPosition(position, ct: stopRequestedCts.Token);
 
-                        latestPositionsUpdate = new List<Position>();
+                //        latestPositionsUpdate = new List<Position>();
 
-                        lock (locker)
-                        {
-                            positionUpdatePosted = true;
-                        }
-                    }
-                }, null, 1000, 1000);
+                //        lock (locker)
+                //        {
+                //            positionUpdatePosted = true;
+                //        }
+                //    }
+                //}, null, 1000, 1000);
 
                 //await SubscribeAndListenRTBars(brokerClient);
 
-                //await PlaceLimitOrders(brokerClient.OrderExecutor);
+                await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
                 //await PlaceMarketOrders(brokerClient.OrderExecutor);
@@ -281,9 +283,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Console.WriteLine("LimitOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            Order order2 = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
-            Console.WriteLine("LimitOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
-            Thread.Sleep(1000);
+            //Order order2 = await orderExecutor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.115, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            //Console.WriteLine("LimitOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
+            //Thread.Sleep(1000);
         }
 
         private static async Task PlaceAndUpdateLimitOrders(IOrderExecutor orderExecutor)
