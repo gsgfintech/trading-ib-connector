@@ -251,10 +251,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     logger.Warn($"Order {orderId} was not found in the database. Adding to the list");
 
                     order.Cross = contract?.Cross ?? Cross.UNKNOWN;
-                    order.WarningMessage = orderState?.WarningMessage;
                     order.LastUpdateTime = DateTimeOffset.Now;
                     order.Status = status != OrderStatusCode.UNKNOWN ? status : Submitted;
-                    order.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = order.PermanentID, Timestamp = DateTimeOffset.Now, Status = order.Status });
+                    order.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = order.Status });
 
                     return order;
                 }
@@ -262,7 +261,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 {
                     logger.Info($"Retrieved information on order {orderId} from the database");
 
-                    existingOrder.WarningMessage = orderState?.WarningMessage;
                     existingOrder.LastUpdateTime = DateTimeOffset.Now;
 
                     if (status != OrderStatusCode.UNKNOWN)
@@ -270,7 +268,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         existingOrder.Status = status;
 
                         if (existingOrder.History.LastOrDefault()?.Status != status)
-                            existingOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = order.PermanentID, Timestamp = DateTimeOffset.Now, Status = status });
+                            existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = status });
                     }
 
                     return existingOrder;
@@ -279,7 +277,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"Updating order {orderId} in the list");
 
-                order.WarningMessage = orderState?.WarningMessage;
                 oldValue.LastUpdateTime = DateTimeOffset.Now;
 
                 if (status != OrderStatusCode.UNKNOWN)
@@ -287,7 +284,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     oldValue.Status = status;
 
                     if (oldValue.History.LastOrDefault()?.Status != status)
-                        oldValue.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = order.PermanentID, Timestamp = DateTimeOffset.Now, Status = status });
+                        oldValue.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = status });
                 }
 
                 return oldValue;
@@ -363,9 +360,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         else if (status == Filled)
                             newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
 
-                        newOrder.WarningMessage = whyHeld;
-
-                        newOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = newOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
+                        newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
 
                         return newOrder;
                     }
@@ -381,13 +376,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             existingOrder.Status = status.Value;
 
                             if (existingOrder.History.LastOrDefault()?.Status != status.Value)
-                                existingOrder.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = existingOrder.PermanentID, Timestamp = DateTimeOffset.Now, Status = existingOrder.Status });
+                                existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = existingOrder.Status });
                         }
 
                         if (status == Filled)
                             existingOrder.FillPrice = avgFillPrice ?? lastFillPrice;
-
-                        existingOrder.WarningMessage = whyHeld;
 
                         return existingOrder;
                     }
@@ -407,7 +400,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     oldValue.Status = status.Value;
 
                     if (oldValue.History.LastOrDefault()?.Status != status.Value)
-                        oldValue.History.Add(new OrderHistoryPoint() { ID = Guid.NewGuid().ToString(), OrderPermanentID = oldValue.PermanentID, Timestamp = DateTimeOffset.Now, Status = status.Value });
+                        oldValue.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = status.Value });
                 }
 
                 if (status == Filled)
@@ -636,7 +629,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 LastBid = latest?.Bid.Close,
                 LastMid = latest?.Mid.Close,
                 Origin = origin,
-                TransmitOrder = true,
                 Status = PreSubmitted,
                 History = new List<OrderHistoryPoint>(),
                 LastUpdateTime = DateTimeOffset.Now,
