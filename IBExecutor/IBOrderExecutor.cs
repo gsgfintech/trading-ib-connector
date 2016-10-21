@@ -18,7 +18,6 @@ using Net.Teirlinck.FX.Data.MarketData;
 using Net.Teirlinck.FX.Data.System;
 using Capital.GSG.FX.Trading.Executor;
 using Capital.GSG.FX.FXConverter;
-using Capital.GSG.FX.AzureTableConnector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -33,7 +32,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly BrokerClient brokerClient;
         private readonly IFxConverter fxConverter;
         private readonly IBClient ibClient;
-        private readonly AzureTableClient azureTableClient;
+        //private readonly AzureTableClient azureTableClient;
         private readonly MDConnector mdConnector;
         private readonly ITradingExecutorRunner tradingExecutorRunner;
 
@@ -135,16 +134,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 throw new ArgumentException($"There is no contract information for {cross}");
         }
 
-        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, AzureTableClient azureTableClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
 
             if (ibClient == null)
                 throw new ArgumentNullException(nameof(ibClient));
-
-            if (azureTableClient == null)
-                throw new ArgumentNullException(nameof(azureTableClient));
 
             if (fxConverter == null)
                 throw new ArgumentNullException(nameof(fxConverter));
@@ -167,7 +163,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 RequestOpenOrders();
             };
 
-            this.azureTableClient = azureTableClient;
             this.fxConverter = fxConverter;
             this.mdConnector = mdConnector;
             this.tradingExecutorRunner = tradingExecutorRunner;
@@ -176,9 +171,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersAwaitingPlaceConfirmationTimer = new Timer(OrdersAwaitingPlaceConfirmationCb, null, 5500, 2000);
         }
 
-        internal static IBOrderExecutor SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, AzureTableClient azureTableClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, IEnumerable<Contract> ibContracts, CancellationToken stopRequestedCt)
+        internal static IBOrderExecutor SetupOrderExecutor(BrokerClient brokerClient, IBClient ibClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, IEnumerable<Contract> ibContracts, CancellationToken stopRequestedCt)
         {
-            _instance = new IBOrderExecutor(brokerClient, ibClient, azureTableClient, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
+            _instance = new IBOrderExecutor(brokerClient, ibClient, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, stopRequestedCt);
 
             _instance.LoadContracts(ibContracts);
 
@@ -240,39 +235,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             order = orders.AddOrUpdate(orderId, (key) =>
             {
-                // Try to load order information from the database
-                Task<Order> orderFetchTask = azureTableClient.OrderActioner.GetOrderByPermanentId(order.PermanentID, stopRequestedCt);
-                orderFetchTask.Wait();
+                logger.Warn($"Received update of new order {orderId}. Adding to the list");
 
-                Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
+                order.Cross = contract?.Cross ?? Cross.UNKNOWN;
+                order.LastUpdateTime = DateTimeOffset.Now;
+                order.Status = status != OrderStatusCode.UNKNOWN ? status : Submitted;
+                order.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = order.Status });
 
-                if (existingOrder == null)
-                {
-                    logger.Warn($"Order {orderId} was not found in the database. Adding to the list");
-
-                    order.Cross = contract?.Cross ?? Cross.UNKNOWN;
-                    order.LastUpdateTime = DateTimeOffset.Now;
-                    order.Status = status != OrderStatusCode.UNKNOWN ? status : Submitted;
-                    order.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = order.Status });
-
-                    return order;
-                }
-                else
-                {
-                    logger.Info($"Retrieved information on order {orderId} from the database");
-
-                    existingOrder.LastUpdateTime = DateTimeOffset.Now;
-
-                    if (status != OrderStatusCode.UNKNOWN)
-                    {
-                        existingOrder.Status = status;
-
-                        if (existingOrder.History.LastOrDefault()?.Status != status)
-                            existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = status });
-                    }
-
-                    return existingOrder;
-                }
+                return order;
             }, (key, oldValue) =>
             {
                 logger.Info($"Updating order {orderId} in the list");
@@ -336,54 +306,25 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 if (permId > 0)
                 {
-                    // Try to load order information from the database
-                    Task<Order> orderFetchTask = azureTableClient.OrderActioner.GetOrderByPermanentId(permId, stopRequestedCt);
-                    orderFetchTask.Wait();
+                    logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
 
-                    Order existingOrder = (orderFetchTask.IsCompleted && !orderFetchTask.IsCanceled && !orderFetchTask.IsFaulted) ? orderFetchTask.Result : null;
+                    Order newOrder = new Order();
+                    newOrder.OrderID = orderId;
+                    newOrder.PermanentID = permId;
+                    newOrder.ParentOrderID = parentId;
+                    newOrder.ClientID = clientId;
+                    newOrder.LastUpdateTime = DateTimeOffset.Now;
 
-                    if (existingOrder == null)
-                    {
-                        logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
+                    newOrder.Status = status ?? Submitted;
 
-                        Order newOrder = new Order();
-                        newOrder.OrderID = orderId;
-                        newOrder.PermanentID = permId;
-                        newOrder.ParentOrderID = parentId;
-                        newOrder.ClientID = clientId;
-                        newOrder.LastUpdateTime = DateTimeOffset.Now;
+                    if (status == Submitted)
+                        newOrder.PlacedTime = DateTimeOffset.Now;
+                    else if (status == Filled)
+                        newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
 
-                        newOrder.Status = status ?? Submitted;
+                    newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
 
-                        if (status == Submitted)
-                            newOrder.PlacedTime = DateTimeOffset.Now;
-                        else if (status == Filled)
-                            newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
-
-                        newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
-
-                        return newOrder;
-                    }
-                    else
-                    {
-                        logger.Info($"Retrieved information on order {orderId} from the database");
-
-                        existingOrder.PermanentID = permId;
-                        existingOrder.LastUpdateTime = DateTimeOffset.Now;
-
-                        if (status.HasValue)
-                        {
-                            existingOrder.Status = status.Value;
-
-                            if (existingOrder.History.LastOrDefault()?.Status != status.Value)
-                                existingOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = existingOrder.Status });
-                        }
-
-                        if (status == Filled)
-                            existingOrder.FillPrice = avgFillPrice ?? lastFillPrice;
-
-                        return existingOrder;
-                    }
+                    return newOrder;
                 }
                 else
                     return null;
@@ -410,14 +351,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 return oldValue;
             });
-
-            if (order.PermanentID > 0)
-            {
-                logger.Info($"Updating order {order.OrderID} ({order.PermanentID}) in database");
-                azureTableClient.OrderActioner.AddOrUpdate(order, stopRequestedCt).Wait();
-            }
-            else
-                logger.Debug($"Not adding/updating order {order.OrderID} in database: its permanent ID is {order.PermanentID}, which means that the order was marked as cancelled after failing at IB");
 
             brokerClient.UpdateStatus("OrdersCount", orders.Count, SystemStatusLevel.GREEN);
             OrderUpdated?.Invoke(order);

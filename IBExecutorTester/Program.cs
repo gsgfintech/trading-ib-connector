@@ -96,7 +96,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, azureTableClient, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts);
+                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts);
                 ((BrokerClient)brokerClient).StopComplete += (() => stopCompleteEvent.Set());
                 ((BrokerClient)brokerClient).AlertReceived += (alert) =>
                 {
