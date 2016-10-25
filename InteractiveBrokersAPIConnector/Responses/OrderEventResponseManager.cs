@@ -1,8 +1,7 @@
-﻿using Net.Teirlinck.FX.Data.ContractData;
-using Net.Teirlinck.FX.Data.OrderData;
-using static Net.Teirlinck.FX.Data.OrderData.OrderStatusCodeUtils;
-using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
+﻿using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 using System;
+using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.OrderData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
@@ -79,7 +78,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="whyHeld">This field is used to identify an order held when TWS is trying to locate shares for a short sell. The value used to indicate this is 'locate'</param>
         public void orderStatus(int orderId, string statusStr, int filledQuantity, int remainingQuantity, double avgFillPrice, int permId, int parentId, double lastFillPrice, int clientId, string whyHeld)
         {
-            OrderStatusCode status = GetFromStrCode(statusStr);
+            OrderStatusCode status = OrderStatusCodeUtils.GetFromStrCode(statusStr);
 
             OrderStatusChangeReceived?.Invoke(orderId, status != OrderStatusCode.UNKNOWN ? status : (OrderStatusCode?)null, filledQuantity > 0 ? filledQuantity : (int?)null, remainingQuantity > 0 ? remainingQuantity : (int?)null, avgFillPrice > 0 ? avgFillPrice : (double?)null, permId, parentId > 0 ? parentId : (int?)null, lastFillPrice > 0 ? lastFillPrice : (double?)null, clientId, whyHeld);
         }

@@ -1,4 +1,4 @@
-﻿using static Net.Teirlinck.Utils.DateTimeUtils;
+﻿using Capital.GSG.FX.Utils.Core;
 using System;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
@@ -23,7 +23,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         {
             if (RealTimeBarReceived != null)
             {
-                DateTime time = GetFromUnixTimeStamp(unixTimestamp);
+                DateTime time = DateTimeUtils.GetFromUnixTimeStamp(unixTimestamp);
 
                 TimeSpan delay = DateTime.Now.Subtract(time);
 

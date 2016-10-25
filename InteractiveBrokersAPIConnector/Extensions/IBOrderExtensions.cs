@@ -1,7 +1,7 @@
-﻿using Net.Teirlinck.FX.Data.OrderData;
-using static Net.Teirlinck.FX.Data.OrderData.OrderType;
+﻿using static Capital.GSG.FX.Data.Core.OrderData.OrderType;
 using System.Collections.Generic;
 using System.Linq;
+using Capital.GSG.FX.Data.Core.OrderData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
 {

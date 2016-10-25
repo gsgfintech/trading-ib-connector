@@ -1,16 +1,15 @@
-﻿using Capital.GSG.FX.Trading.Executor;
-using log4net;
-using Net.Teirlinck.FX.Data.ContractData;
-using Net.Teirlinck.FX.Data.ExecutionData;
-using Net.Teirlinck.FX.Data.System;
-using static Net.Teirlinck.FX.Data.System.AlertLevel;
+﻿using log4net;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Net.Teirlinck.FX.Data.OrderData;
 using Capital.GSG.FX.FXConverter;
+using Capital.GSG.FX.Trading.Executor.Core;
+using Capital.GSG.FX.Data.Core.ExecutionData;
+using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.OrderData;
+using Capital.GSG.FX.Data.Core.SystemData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -191,7 +190,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void SendAlertError(string subject, string body)
         {
-            brokerClient.OnAlert(new Alert(ERROR, "IBTradeExecutor", subject, body));
+            brokerClient.OnAlert(new Alert() { Level = AlertLevel.ERROR, Source = "IBTradeExecutor", Subject = subject, Body = body });
         }
 
         public void Dispose()

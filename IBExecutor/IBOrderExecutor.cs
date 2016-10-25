@@ -1,10 +1,9 @@
 ﻿using log4net;
-using Net.Teirlinck.FX.Data.ContractData;
-using static Net.Teirlinck.FX.Data.ContractData.Currency;
-using Net.Teirlinck.FX.Data.OrderData;
-using static Net.Teirlinck.FX.Data.OrderData.OrderSide;
-using static Net.Teirlinck.FX.Data.OrderData.OrderStatusCode;
-using static Net.Teirlinck.FX.Data.OrderData.OrderType;
+using Capital.GSG.FX.Data.Core.ContractData;
+using static Capital.GSG.FX.Data.Core.ContractData.Currency;
+using static Capital.GSG.FX.Data.Core.OrderData.OrderSide;
+using static Capital.GSG.FX.Data.Core.OrderData.OrderStatusCode;
+using static Capital.GSG.FX.Data.Core.OrderData.OrderType;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,12 +11,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using Net.Teirlinck.Utils;
 using Capital.GSG.FX.MarketDataService.Connector;
-using Net.Teirlinck.FX.Data.MarketData;
-using Net.Teirlinck.FX.Data.System;
-using Capital.GSG.FX.Trading.Executor;
+using Capital.GSG.FX.Data.Core.MarketData;
+using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.FXConverter;
+using Capital.GSG.FX.Data.Core.OrderData;
+using Capital.GSG.FX.Trading.Executor.Core;
+using Capital.GSG.FX.Utils.Core;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -32,7 +32,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly BrokerClient brokerClient;
         private readonly IFxConverter fxConverter;
         private readonly IBClient ibClient;
-        //private readonly AzureTableClient azureTableClient;
         private readonly MDConnector mdConnector;
         private readonly ITradingExecutorRunner tradingExecutorRunner;
 
@@ -273,12 +272,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void SendError(string subject, string body)
         {
-            brokerClient.OnAlert(new Alert(AlertLevel.ERROR, nameof(IBOrderExecutor), subject, body));
+            brokerClient.OnAlert(new Alert() { Level = AlertLevel.ERROR, Source = nameof(IBOrderExecutor), Subject = subject, Body = body, Timestamp = DateTimeOffset.Now, AlertId = Guid.NewGuid().ToString() });
         }
 
         private void SendFatal(string subject, string body, string actionUrl = null)
         {
-            brokerClient.OnAlert(new Alert(AlertLevel.FATAL, nameof(IBOrderExecutor), subject, body, actionUrl: actionUrl));
+            brokerClient.OnAlert(new Alert() { Level = AlertLevel.FATAL, Source = nameof(IBOrderExecutor), Subject = subject, Body = body, ActionUrl = actionUrl, Timestamp = DateTimeOffset.Now, AlertId = Guid.NewGuid().ToString() });
         }
 
         internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)

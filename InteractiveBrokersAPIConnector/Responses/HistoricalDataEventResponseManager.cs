@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.HistoricalData;
+﻿using Capital.GSG.FX.Data.Core.HistoricalData;
 using System;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI

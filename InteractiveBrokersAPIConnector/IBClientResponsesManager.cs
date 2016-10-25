@@ -1,6 +1,6 @@
-﻿using IBApi;
+﻿using Capital.GSG.FX.IBData;
+using IBApi;
 using log4net;
-using Net.Teirlinck.FX.Data;
 using System;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI

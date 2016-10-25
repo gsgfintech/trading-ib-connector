@@ -1,7 +1,7 @@
-﻿using Net.Teirlinck.FX.Data.ContractData;
+﻿using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.MarketScanner;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 using System;
-using Net.Teirlinck.FX.Data.MarketScannerData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {

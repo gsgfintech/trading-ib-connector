@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.MarketScannerData;
+﻿using IBApi;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
@@ -27,7 +27,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="subscription">Summary of the scanner subscription parameters including filters</param>
         public void RequestScannerSubscription(int requestID, ScannerSubscription subscription)
         {
-            ClientSocket.reqScannerSubscription(requestID, subscription.ToIBScannerSubscription(), null);
+            ClientSocket.reqScannerSubscription(requestID, subscription, null);
         }
 
         /// <summary>

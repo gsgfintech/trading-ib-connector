@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.ExecutionData;
+﻿using Capital.GSG.FX.Data.Core.ExecutionData;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests

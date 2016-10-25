@@ -1,5 +1,5 @@
-﻿using Net.Teirlinck.FX.Data.AccountPortfolio;
-using Net.Teirlinck.FX.Data.ContractData;
+﻿using Capital.GSG.FX.Data.Core.AccountPortfolio;
+using Capital.GSG.FX.Data.Core.ContractData;
 using System;
 using System.Collections.Generic;
 using System.Linq;

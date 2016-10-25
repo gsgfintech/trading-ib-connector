@@ -1,6 +1,6 @@
-﻿using log4net;
-using Net.Teirlinck.FX.Data.ContractData;
-using Net.Teirlinck.FX.Data.OrderData;
+﻿using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.OrderData;
+using log4net;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 using System;
 using System.Threading;
@@ -121,25 +121,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             {
                 this._nextValidOrderID = nextValidOrderID;
             }
-        }
-
-        /// <summary>
-        /// Call this method to exercise options
-        /// </summary>
-        /// <param name="requestID">The identifier for the exercise request</param>
-        /// <param name="contract">This class contains attributes used to describe the option contract</param>
-        /// <param name="exerciseAction">Specifies whether to exercise the specified option or let the option lapse</param>
-        /// <param name="exerciseQuantity">The number of contracts to be exercised</param>
-        /// <param name="account">For institutional orders. Specifies the destination account</param>
-        /// <param name="overrideSystemsAction">Specifies whether your setting will override the system's natural action. 
-        /// For example, if your action is "exercise" and the option is not in-the-money, by natural action the option would not exercise. 
-        /// If you have override set to "yes" the natural action would be overridden and the out-of-the money option would be exercised</param>
-        public void RequestExerciseOption(int requestID, Contract contract, OptionExerciseAction exerciseAction, int exerciseQuantity, string account, bool overrideSystemsAction)
-        {
-            int exerciseActionInt = OptionExerciseActionUtils.GetIntCode(exerciseAction);
-            int overrideSystemsActionInt = overrideSystemsAction ? 1 : 0;
-
-            ClientSocket.exerciseOptions(requestID, contract.ToIBContract(), exerciseActionInt, exerciseQuantity, account, overrideSystemsActionInt);
         }
 
         /// <summary>

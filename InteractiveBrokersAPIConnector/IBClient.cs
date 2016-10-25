@@ -1,6 +1,6 @@
-﻿using log4net;
-using Net.Teirlinck.FX.Data;
-using Net.Teirlinck.Utils;
+﻿using Capital.GSG.FX.IBData;
+using Capital.GSG.FX.Utils.Core;
+using log4net;
 using System;
 using System.Collections.Generic;
 using System.IO;

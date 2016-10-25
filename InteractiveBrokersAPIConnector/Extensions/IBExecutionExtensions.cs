@@ -1,9 +1,8 @@
-﻿using Net.Teirlinck.FX.Data.ExecutionData;
-using static Net.Teirlinck.FX.Data.ExecutionData.ExecutionSide;
+﻿using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.ExecutionData;
 using System;
 using System.Globalization;
 using System.Linq;
-using Net.Teirlinck.FX.Data.ContractData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
 {
@@ -34,11 +33,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                     apiExecution.ExecutionTime = executionTime;
 
                 if (ibExecution.Side == "BOT")
-                    apiExecution.Side = BOUGHT;
+                    apiExecution.Side = ExecutionSide.BOUGHT;
                 else if (ibExecution.Side == "SLD")
-                    apiExecution.Side = SOLD;
+                    apiExecution.Side = ExecutionSide.SOLD;
                 else
-                    apiExecution.Side = UNKNOWN;
+                    apiExecution.Side = ExecutionSide.UNKNOWN;
 
                 if (!String.IsNullOrEmpty(ibExecution.OrderRef))
                 {

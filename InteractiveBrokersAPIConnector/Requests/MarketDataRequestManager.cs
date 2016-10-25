@@ -1,12 +1,11 @@
-﻿using Net.Teirlinck.FX.Data.ContractData;
-using Net.Teirlinck.FX.Data.MarketData;
-using static Net.Teirlinck.FX.Data.MarketData.MarketDataTypeUtils;
-using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
-using Net.Teirlinck.Utils;
+﻿using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using log4net;
+using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.MarketData;
+using Capital.GSG.FX.Utils.Core;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 {
@@ -34,7 +33,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             try {
                 string genericTicksListStr = String.Empty;
 
-                if (!CollectionUtils.IsNullOrEmpty<GenericTickType>(genericTicksList) && !isSnapshot)
+                if (!genericTicksList.IsNullOrEmpty() && !isSnapshot)
                     genericTicksListStr = genericTicksList.Aggregate<GenericTickType, string>(String.Empty, (cur, next) => { return $"{cur},{next.ID}"; });
 
                 ClientSocket.reqMktData(requestID, contract.ToIBContract(), genericTicksListStr, isSnapshot, null);

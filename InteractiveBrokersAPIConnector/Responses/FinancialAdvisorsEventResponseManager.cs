@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.FinancialAdvisorsData;
+﻿using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using System;
 using System.Collections.Generic;
 

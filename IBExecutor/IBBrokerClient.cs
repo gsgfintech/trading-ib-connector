@@ -1,19 +1,18 @@
-﻿using Capital.GSG.FX.Trading.Executor;
-using System;
+﻿using System;
 using System.Threading.Tasks;
-using Net.Teirlinck.FX.Data;
 using System.Threading;
 using log4net;
 using System.Collections.Generic;
-using Net.Teirlinck.FX.Data.System;
-using static Net.Teirlinck.FX.Data.System.SystemStatusLevel;
 using System.Linq;
-using Net.Teirlinck.Utils;
 using Capital.GSG.FX.MarketDataService.Connector;
-using Net.Teirlinck.FX.Data.OrderData;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.IBData.Service.Connector;
-using Net.Teirlinck.FX.Data.ContractData;
+using Capital.GSG.FX.Data.Core.SystemData;
+using Capital.GSG.FX.Utils.Core;
+using Capital.GSG.FX.Data.Core.OrderData;
+using Capital.GSG.FX.Trading.Executor.Core;
+using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.IBData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -87,8 +86,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             ibClient = new IBClient(clientID, clientName, socketHost, socketPort, ibApiErrorCodes, stopRequestedCt);
             ibClient.APIErrorReceived += IbClient_APIErrorReceived;
-            ibClient.IBConnectionEstablished += () => UpdateStatus(IsConnectedKey, true, GREEN);
-            ibClient.IBConnectionLost += () => UpdateStatus(IsConnectedKey, false, RED);
+            ibClient.IBConnectionEstablished += () => UpdateStatus(IsConnectedKey, true, SystemStatusLevel.GREEN);
+            ibClient.IBConnectionLost += () => UpdateStatus(IsConnectedKey, false, SystemStatusLevel.RED);
 
             // Throttle status updates to one every five seconds
             // Delay the first status update by 3 seconds, otherwise the client is already connected before the trade engine has had time to wire up the "StatusUpdated" event listener
@@ -293,7 +292,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     }
 
                     if (error.RelayToMonitoringInterface)
-                        AlertReceived?.Invoke(new Alert(error.Level, clientName, subject, body));
+                        AlertReceived?.Invoke(new Alert() { Level = error.Level, Source = clientName, Subject = subject, Body = body });
                     else
                         logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");
                 }
@@ -324,7 +323,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             string err = "Market data connection has been lost for 5 minutes. Will restart IB client";
             logger.Error(err);
 
-            OnAlert(new Alert(AlertLevel.FATAL, clientName, "Restarting TWS", err));
+            OnAlert(new Alert() { Level = AlertLevel.FATAL, Source = clientName, Subject = "Restarting TWS", Body = err, Timestamp = DateTimeOffset.Now, AlertId = Guid.NewGuid().ToString() });
 
             if (await Restart())
                 logger.Info("Restarted IB client");
@@ -360,7 +359,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             ibClient?.Dispose();
 
-            UpdateStatus(MessageKey, "Stop complete", RED);
+            UpdateStatus(MessageKey, "Stop complete", SystemStatusLevel.RED);
 
             SendStatusUpdate();
 
@@ -382,17 +381,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         /// <param name="attributeLevel"></param>
         internal void UpdateStatus(string attributeName, object attributeValue, SystemStatusLevel attributeLevel)
         {
-            if (string.IsNullOrEmpty(attributeName))
-                return;
-
-            var attribute = Status.Attributes.Where(attr => attr.Name == attributeName).FirstOrDefault();
-
-            if (attribute == null)
-                Status.Attributes.Add(new SystemStatusAttribute(attributeName, attributeValue, attributeLevel));
-            else
+            if (attributeValue != null)
             {
-                attribute.Value = attributeValue;
-                attribute.Level = attributeLevel;
+                if (string.IsNullOrEmpty(attributeName))
+                    return;
+
+                var attribute = Status.Attributes.Where(attr => attr.Name == attributeName).FirstOrDefault();
+
+                if (attribute == null)
+                    Status.Attributes.Add(new SystemStatusAttribute(attributeName, attributeValue.ToString(), attributeLevel));
+                else
+                {
+                    attribute.Value = attributeValue.ToString();
+                    attribute.Level = attributeLevel;
+                }
             }
         }
 
@@ -402,7 +404,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         /// <param name="attributes">Param 1: attribute key, Param 2: attribute value, Param 3: attribute status level</param>
         internal void UpdateStatus(IEnumerable<SystemStatusAttribute> attributes)
         {
-            if (CollectionUtils.IsNullOrEmpty(attributes))
+            if (attributes.IsNullOrEmpty())
                 return;
 
             foreach (var attribute in attributes)

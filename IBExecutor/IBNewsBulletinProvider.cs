@@ -1,8 +1,8 @@
-﻿using Capital.GSG.FX.Trading.Executor;
-using System;
-using Net.Teirlinck.FX.Data.NewsBulletinData;
+﻿using System;
 using log4net;
 using System.Threading;
+using Capital.GSG.FX.Data.Core.NewsBulletinData;
+using Capital.GSG.FX.Trading.Executor.Core;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {

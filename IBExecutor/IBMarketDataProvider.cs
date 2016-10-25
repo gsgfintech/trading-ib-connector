@@ -1,17 +1,17 @@
-﻿using Capital.GSG.FX.Trading.Executor;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Net.Teirlinck.FX.Data.ContractData;
 using log4net;
 using System.Collections.Concurrent;
-using Net.Teirlinck.FX.Data.MarketData;
-using static Net.Teirlinck.FX.Data.MarketData.MarketDataTickType;
 using System.Threading;
-using Net.Teirlinck.Utils;
-using static Net.Teirlinck.FX.Data.System.SystemStatusLevel;
 using Capital.GSG.FX.IBData.Service.Connector;
+using Capital.GSG.FX.Trading.Executor.Core;
+using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.MarketData;
+using static Capital.GSG.FX.Data.Core.MarketData.MarketDataTickType;
+using Capital.GSG.FX.Utils.Core;
+using static Capital.GSG.FX.Data.Core.SystemData.SystemStatusLevel;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {

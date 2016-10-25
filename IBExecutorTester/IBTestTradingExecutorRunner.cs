@@ -1,7 +1,7 @@
-﻿using Capital.GSG.FX.Trading.Executor;
+﻿using Capital.GSG.FX.Data.Core.MarketData;
+using Capital.GSG.FX.Data.Core.OrderData;
+using Capital.GSG.FX.Trading.Executor.Core;
 using System;
-using Net.Teirlinck.FX.Data.MarketData;
-using Net.Teirlinck.FX.Data.OrderData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {

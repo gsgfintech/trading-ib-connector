@@ -1,9 +1,8 @@
-﻿using Capital.GSG.FX.FXConverter;
-using Capital.GSG.FX.Trading.Executor;
+﻿using Capital.GSG.FX.Data.Core.AccountPortfolio;
+using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.FXConverter;
+using Capital.GSG.FX.Trading.Executor.Core;
 using log4net;
-using Net.Teirlinck.FX.Data.AccountPortfolio;
-using Net.Teirlinck.FX.Data.AccountPortfolioData;
-using Net.Teirlinck.FX.Data.ContractData;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -25,7 +24,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private readonly IBClient ibClient;
 
-        public ConcurrentDictionary<string, Position> Positions { get; } = new ConcurrentDictionary<string, Position>();
+        public ConcurrentDictionary<Tuple<string, Cross>, Position> Positions { get; } = new ConcurrentDictionary<Tuple<string, Cross>, Position>();
 
         public event Action<Position> PositionUpdated;
 
@@ -77,107 +76,55 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void ResponseManager_PortfolioUpdated(Contract contract, int quantity, double marketPrice, double marketValue, double averageCost, double unrealisedPNL, double realisedPNL, string account)
         {
-            Task.Run(async () =>
+            Cross cross = contract.Cross;
+
+            if (cross == Cross.UNKNOWN)
             {
-                Cross cross = contract.Cross;
+                logger.Debug("Ignoring position update for UNKNOWN cross (might not be an FX position)");
+                return;
+            }
 
-                if (cross == Cross.UNKNOWN)
-                {
-                    logger.Debug("Ignoring position update for UNKNOWN cross (might not be an FX position)");
-                    return;
-                }
+            logger.Debug($"Received position update for account {account}: {quantity} {cross} @ {averageCost}");
 
-                logger.Debug($"Received position update for account {account}: {quantity} {cross} @ {averageCost}");
+            double? realizedPnlUsd = ConvertToUsd(cross, realisedPNL);
+            double? unrealizedPnlUsd = ConvertToUsd(cross, unrealisedPNL);
 
-                Position position = null;
+            Tuple<string, Cross> key = new Tuple<string, Cross>(account, cross);
 
-                if (Positions.ContainsKey(account))
-                {
-                    position = Positions[account];
+            Position updatedPosition = new Position()
+            {
+                Account = account,
+                AverageCost = averageCost,
+                Broker = Broker.IB,
+                Cross = cross,
+                LastUpdate = DateTimeOffset.Now,
+                MarketPrice = marketPrice,
+                MarketValue = marketValue,
+                PositionQuantity = quantity,
+                RealizedPnL = realisedPNL,
+                RealizedPnlUsd = realizedPnlUsd,
+                UnrealizedPnL = unrealisedPNL,
+                UnrealizedPnlUsd = unrealizedPnlUsd
+            };
 
-                    position.Timestamp = DateTime.Now;
+            Positions.AddOrUpdate(key, updatedPosition, (k, oldValue) => updatedPosition);
 
-                    PositionSecurity security = position.PositionSecurities.FirstOrDefault(p => p.Cross == contract.Cross);
-
-                    if (security == null)
-                    {
-                        security = new PositionSecurity()
-                        {
-                            Cross = cross,
-                            PositionQuantity = quantity,
-                            AverageCost = averageCost,
-                            MarketPrice = marketPrice,
-                            MarketValue = marketValue,
-                            RealizedPnL = realisedPNL,
-                            UnrealizedPnL = unrealisedPNL
-                        };
-
-                        await ComputedUsdPnl(security);
-
-                        position.PositionSecurities.Add(security);
-                    }
-                    else
-                    {
-                        security.PositionQuantity = quantity;
-                        security.AverageCost = averageCost;
-                        security.MarketPrice = marketPrice;
-                        security.MarketValue = marketValue;
-                        security.RealizedPnL = realisedPNL;
-                        security.UnrealizedPnL = unrealisedPNL;
-
-                        await ComputedUsdPnl(security);
-                    }
-                }
-                else
-                {
-                    position = new Position(Broker.IB, account, DateTimeOffset.Now);
-
-                    PositionSecurity security = new PositionSecurity()
-                    {
-                        Cross = cross,
-                        PositionQuantity = quantity,
-                        AverageCost = averageCost,
-                        MarketPrice = marketPrice,
-                        MarketValue = marketValue,
-                        RealizedPnL = realisedPNL,
-                        UnrealizedPnL = unrealisedPNL
-                    };
-
-                    await ComputedUsdPnl(security);
-
-                    position.PositionSecurities.Add(security);
-                }
-
-                Positions.AddOrUpdate(account, position, (key, oldValue) => position);
-
-                if (Positions.Count > 0)
-                    PositionUpdated?.Invoke(position);
-            });
+            PositionUpdated?.Invoke(updatedPosition);
         }
 
-        private async Task ComputedUsdPnl(PositionSecurity posSecurity)
+        private double? ConvertToUsd(Cross cross, double? pnl)
         {
-            // USD Unrealized PnL
-            if (posSecurity.UnrealizedPnL.HasValue && posSecurity.UnrealizedPnL.Value != 0)
+            if (pnl.HasValue && pnl.Value != 0 && CrossUtils.GetQuotedCurrency(cross) != Currency.USD)
             {
-                if (CrossUtils.GetQuotedCurrency(posSecurity.Cross) == Currency.USD)
-                    posSecurity.UnrealizedPnlUsd = posSecurity.UnrealizedPnL.Value;
-                else
-                    posSecurity.UnrealizedPnlUsd = await fxConverter.Convert(posSecurity.UnrealizedPnL.Value, CrossUtils.GetQuotedCurrency(posSecurity.Cross), Currency.USD, stopRequestedCt);
+                Task<double?> t = fxConverter.Convert(pnl.Value, CrossUtils.GetQuotedCurrency(cross), Currency.USD, stopRequestedCt);
 
-                logger.Debug($"Computed unrealised USD PnL for {posSecurity.Cross} position: {posSecurity.UnrealizedPnlUsd} USD");
+                t.Wait();
+
+                if (t.IsCompleted)
+                    return t.Result;
             }
 
-            // USD Realized PnL
-            if (posSecurity.RealizedPnL.HasValue && posSecurity.RealizedPnL.Value != 0)
-            {
-                if (CrossUtils.GetQuotedCurrency(posSecurity.Cross) == Currency.USD)
-                    posSecurity.RealizedPnlUsd = posSecurity.RealizedPnL.Value;
-                else
-                    posSecurity.RealizedPnlUsd = await fxConverter.Convert(posSecurity.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(posSecurity.Cross), Currency.USD, stopRequestedCt);
-
-                logger.Debug($"Computed realised USD PnL for {posSecurity.Cross} position: {posSecurity.UnrealizedPnlUsd} USD");
-            }
+            return null;
         }
 
         private void ResponseManager_AccountValueUpdated(string attrKey, string attrValue, Currency currency, string accountName)
@@ -263,51 +210,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ibClient.RequestManager.AccountRequestManager.CancelRealTimePositionUpdates();
         }
 
-        public double GetPositionQuantityForCross(Cross cross, string account)
+        public double GetPositionQuantityForCross(Broker broker, string account, Cross cross)
         {
-            if (Positions.ContainsKey(account))
-                return Positions[account].PositionSecurities.Where(ps => ps.Cross == cross).FirstOrDefault()?.PositionQuantity ?? 0.0;
+            Tuple<string, Cross> key = new Tuple<string, Cross>(account, cross);
+
+            Position position;
+            if (Positions.TryGetValue(key, out position))
+                return position.PositionQuantity;
             else
-                return 0.0;
+                return 0;
         }
 
         public Dictionary<Cross, double> GetAllOpenPositions()
         {
-            Dictionary<Cross, double> openPositions = new Dictionary<Cross, double>();
+            var positions = Positions.ToArray();
 
-            // Take a snapshot of the dictionary
-            var positions = Positions.Values;
-
-            foreach (var position in positions)
-            {
-                foreach (var posSecurity in position.PositionSecurities)
-                {
-                    if (!openPositions.ContainsKey(posSecurity.Cross))
-                    {
-                        if (posSecurity.PositionQuantity != 0)
-                            openPositions.Add(posSecurity.Cross, posSecurity.PositionQuantity);
-                    }
-                    else
-                    {
-                        if (posSecurity.PositionQuantity != 0)
-                        {
-                            double newQty = openPositions[posSecurity.Cross] + posSecurity.PositionQuantity;
-
-                            if (newQty != 0)
-                                openPositions[posSecurity.Cross] = newQty;
-                            else
-                                openPositions.Remove(posSecurity.Cross);
-                        }
-                    }
-                }
-            }
-
-            return openPositions;
-        }
-
-        private class PositionInternal
-        {
-
+            return positions.ToDictionary(kvp => kvp.Key.Item2, kvp => kvp.Value.PositionQuantity);
         }
     }
 }

@@ -1,5 +1,5 @@
-﻿using IBApi;
-using Net.Teirlinck.FX.Data.FinancialAdvisorsData;
+﻿using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
+using IBApi;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 {

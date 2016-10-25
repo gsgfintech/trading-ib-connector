@@ -1,5 +1,5 @@
-﻿using Net.Teirlinck.FX.Data.ContractData;
-using Net.Teirlinck.FX.Data.ExecutionData;
+﻿using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.ExecutionData;
 using System;
 using System.Collections.Generic;
 using System.Linq;

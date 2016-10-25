@@ -1,6 +1,5 @@
-﻿using Net.Teirlinck.FX.Data.NewsBulletinData;
-using static Net.Teirlinck.FX.Data.NewsBulletinData.NewsBulletinTypeUtils;
-using System;
+﻿using System;
+using Capital.GSG.FX.Data.Core.NewsBulletinData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
@@ -22,7 +21,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         {
             if (NewsBulletinReceived != null)
             {
-                NewsBulletinType msgType = GetByIntCode(msgTypeInt);
+                NewsBulletinType msgType = NewsBulletinTypeUtils.GetByIntCode(msgTypeInt);
 
                 NewsBulletinReceived?.Invoke(msgId, msgType, message, origExchange);
             }

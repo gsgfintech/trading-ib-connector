@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.DisplayGroupData;
+﻿using Capital.GSG.FX.Data.Core.DisplayGroup;
 using System;
 using System.Collections.Generic;
 

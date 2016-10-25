@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.ContractData;
+﻿using Capital.GSG.FX.Data.Core.ContractData;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 using System;
 

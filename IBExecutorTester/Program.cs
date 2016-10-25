@@ -1,33 +1,30 @@
 ﻿using log4net;
 using log4net.Config;
-using static Net.Teirlinck.FX.Data.OrderData.OrderSide;
-using static Net.Teirlinck.FX.Data.OrderData.TimeInForce;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Net.Teirlinck.FX.Data.ExecutionData;
-using Net.Teirlinck.FX.Data.ContractData;
-using static Net.Teirlinck.FX.Data.ContractData.Cross;
-using Net.Teirlinck.FX.Data.AccountPortfolioData;
-using Net.Teirlinck.FX.Data.OrderData;
-using System.Linq;
-using Capital.GSG.FX.Trading.Executor;
 using Capital.GSG.FX.MonitoringAppConnector;
 using System.Collections.Concurrent;
 using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.FXConverterServiceConnector;
 using Capital.GSG.FX.AzureTableConnector;
-using Net.Teirlinck.FX.Data.AccountPortfolio;
+using Capital.GSG.FX.Data.Core.OrderData;
+using static Capital.GSG.FX.Data.Core.OrderData.OrderSide;
+using static Capital.GSG.FX.Data.Core.OrderData.TimeInForce;
+using Capital.GSG.FX.Data.Core.AccountPortfolio;
+using Capital.GSG.FX.Data.Core.ContractData;
+using static Capital.GSG.FX.Data.Core.ContractData.Cross;
+using Capital.GSG.FX.Trading.Executor.Core;
+using Capital.GSG.FX.Data.Core.ExecutionData;
+using Capital.GSG.FX.IBData.Service.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
     class Program
     {
         private static ILog logger = LogManager.GetLogger(nameof(Program));
-
-        private static AzureTableClient azureTableClient = null;
 
         private static IFxConverter fxConverter;
         private static PositionsConnector positionsConnector;
@@ -40,8 +37,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private static object locker = new object();
 
         private static List<Position> latestPositionsUpdate = new List<Position>();
-        private static bool positionUpdatePosted = false;
-        private static Timer positionUpdatePosterTimer = null;
 
         internal static int RtBarsCounter = 0;
 
@@ -88,9 +83,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             try
             {
-                azureTableClient = await AzureTableClient.GetAzureTableClient(azureTableConnectionString);
+                ContractsConnector contractsConnector = ContractsConnector.GetConnector("https://tryphon.gsg.capital:6583");
 
-                List<Contract> ibContracts = await azureTableClient.ContractActioner.GetAll();
+                List<Contract> ibContracts = await contractsConnector.GetAll();
 
                 IBTestTradingExecutorRunner tradingExecutorRunner = new IBTestTradingExecutorRunner();
 
@@ -201,85 +196,79 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Received order update: ID {order.OrderID}");
 
-            CancellationTokenSource cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            await Task.CompletedTask;
 
-            await azureTableClient?.OrderActioner.AddOrUpdate(order, ct: cts.Token);
+            //CancellationTokenSource cts = new CancellationTokenSource();
+            //cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            await ordersConnector?.PostOrder(order, ct: cts.Token);
+            //await azureTableClient?.OrderActioner.AddOrUpdate(order, ct: cts.Token);
+
+            //await ordersConnector?.PostOrder(order, ct: cts.Token);
         }
 
         private static async void PositionExecutor_AccountUpdated(Account account)
         {
+            await Task.CompletedTask;
+
             Console.WriteLine("Received account update:");
-            //Console.WriteLine(account.ToString());
+            Console.WriteLine(account.ToString());
 
-            CancellationTokenSource cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            //CancellationTokenSource cts = new CancellationTokenSource();
+            //cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            await azureTableClient?.AccountActioner.AddOrUpdate(account, ct: cts.Token);
-        }
-
-        private static async Task<Dictionary<Cross, Contract>> GetContracts(string mongoDBHost, int mongoDBPort, string mongoDBName)
-        {
-            Contract eurContract = await azureTableClient?.ContractActioner.GetContractByCrossAndBroker(EURUSD, Broker.IB);
-            Contract chfContract = await azureTableClient?.ContractActioner.GetContractByCrossAndBroker(USDHKD, Broker.IB);
-
-            Dictionary<Cross, Contract> contracts = new Dictionary<Cross, Contract>();
-            contracts.Add(EURUSD, eurContract);
-            contracts.Add(EURCHF, chfContract);
-
-            return contracts;
+            //await azureTableClient?.AccountActioner.AddOrUpdate(account, ct: cts.Token);
         }
 
         private static async void TradesExecutor_TradeReceived(Execution execution)
         {
             logger.Info($"Received execution of {CrossUtils.ToSring(execution.Cross)}: {execution}");
 
-            CancellationTokenSource cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            await Task.CompletedTask;
 
-            await azureTableClient?.ExecutionActioner.AddOrUpdate(execution, cts.Token);
+            //CancellationTokenSource cts = new CancellationTokenSource();
+            //cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            await executionsConnector?.PostNewExecution(execution, ct: cts.Token);
+            //await azureTableClient?.ExecutionActioner.AddOrUpdate(execution, cts.Token);
+
+            //await executionsConnector?.PostNewExecution(execution, ct: cts.Token);
         }
 
         private static async Task PlaceTrailingStopOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceTrailingStopOrder(EURUSD, BUY, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order1 = await orderExecutor.PlaceTrailingStopOrder(Cross.EURUSD, OrderSide.BUY, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("TrailingStopOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            Order order2 = await orderExecutor.PlaceTrailingStopOrder(EURUSD, SELL, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order2 = await orderExecutor.PlaceTrailingStopOrder(Cross.EURUSD, OrderSide.SELL, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("TrailingStopOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceTrailingMarketIfTouchedOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(EURUSD, BUY, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order1 = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(Cross.EURUSD, OrderSide.BUY, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("TrailingMarketIfTouchedOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            Order order2 = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(EURUSD, SELL, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order2 = await orderExecutor.PlaceTrailingMarketIfTouchedOrder(Cross.EURUSD, OrderSide.SELL, 20000, 0.001, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("TrailingMarketIfTouchedOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceMarketOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, OrderSide.SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("MarketOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, OrderSide.SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("MarketOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }
 
         private static async Task PlaceLimitOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceLimitOrder(EURUSD, SELL, 20000, 1.125, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order1 = await orderExecutor.PlaceLimitOrder(EURUSD, OrderSide.SELL, 20000, 1.125, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("LimitOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
@@ -331,29 +320,31 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Received positions details:");
 
-            try
-            {
-                CancellationTokenSource cts = new CancellationTokenSource();
-                cts.CancelAfter(TimeSpan.FromSeconds(5));
+            await Task.CompletedTask;
 
-                Console.WriteLine(position);
+            //try
+            //{
+            //    CancellationTokenSource cts = new CancellationTokenSource();
+            //    cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-                await azureTableClient?.PositionActioner.AddOrUpdate(position, cts.Token);
+            //    Console.WriteLine(position);
 
-                lock (locker)
-                {
-                    latestPositionsUpdate.Add(position);
-                    positionUpdatePosted = false;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                logger.Error("Failed to handle position update: operation cancelled");
-            }
-            catch (Exception ex)
-            {
-                logger.Error("Failed to handle position update", ex);
-            }
+            //    await azureTableClient?.PositionActioner.AddOrUpdate(position, cts.Token);
+
+            //    lock (locker)
+            //    {
+            //        latestPositionsUpdate.Add(position);
+            //        positionUpdatePosted = false;
+            //    }
+            //}
+            //catch (OperationCanceledException)
+            //{
+            //    logger.Error("Failed to handle position update: operation cancelled");
+            //}
+            //catch (Exception ex)
+            //{
+            //    logger.Error("Failed to handle position update", ex);
+            //}
         }
 
         private static async Task SubscribeAndListenRTBars(IBrokerClient brokerClient)

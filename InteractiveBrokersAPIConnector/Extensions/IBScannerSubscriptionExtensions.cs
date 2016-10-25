@@ -1,4 +1,4 @@
-﻿using Net.Teirlinck.FX.Data.MarketScannerData;
+﻿using Capital.GSG.FX.Data.Core.MarketScanner;
 using System;
 using System.Collections.Generic;
 using System.Linq;

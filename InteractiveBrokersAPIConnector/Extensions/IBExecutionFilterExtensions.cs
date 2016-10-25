@@ -1,5 +1,5 @@
-﻿using Net.Teirlinck.FX.Data.ExecutionData;
-using Net.Teirlinck.FX.Data.OrderData;
+﻿using Capital.GSG.FX.Data.Core.ExecutionData;
+using Capital.GSG.FX.Data.Core.OrderData;
 using System.Collections.Generic;
 using System.Linq;
 
