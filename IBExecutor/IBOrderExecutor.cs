@@ -547,6 +547,30 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin)
         {
+            if (cross == Cross.UNKNOWN)
+            {
+                logger.Error("Unable to create order: cross is unknown");
+                return null;
+            }
+
+            if (side == OrderSide.UNKNOWN)
+            {
+                logger.Error("Unable to create order: side is unknown");
+                return null;
+            }
+
+            if (quantity == 0)
+            {
+                logger.Error("Unable to create order: quantity is 0");
+                return null;
+            }
+
+            if (tif == TimeInForce.UNKNOWN)
+            {
+                logger.Error("Unable to create order: time-in-force is unknown");
+                return null;
+            }
+
             RTBar latest = await mdConnector.GetLatest(cross, stopRequestedCt);
 
             Order order = new Order()
@@ -610,13 +634,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             // 1. Prepare the limit order
             Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
-            order.Type = LIMIT;
-            order.LimitPrice = limitPrice;
 
-            // 2. Add the order to the placement queue
-            logger.Debug($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            if (order != null)
+            {
+                order.Type = LIMIT;
+                order.LimitPrice = limitPrice;
 
-            return PlaceOrder(order);
+                // 2. Add the order to the placement queue
+                logger.Debug($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+                return PlaceOrder(order);
+            }
+            else
+            {
+                logger.Error($"Failed to place LIMIT order (cross: {cross}, side: {side}, quantity: {quantity:N0}, limitPrice: {limitPrice}, tif: {tif})");
+                return null;
+            }
         }
 
         public async Task<Order> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
@@ -641,13 +674,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             // 1. Prepare the limit order
             Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
-            order.Type = STOP;
-            order.StopPrice = stopPrice;
+            if (order != null)
+            {
+                order.Type = STOP;
+                order.StopPrice = stopPrice;
 
-            // 2. Add the order to the placement queue
-            logger.Debug($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+                // 2. Add the order to the placement queue
+                logger.Debug($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-            return PlaceOrder(order);
+                return PlaceOrder(order);
+            }
+            else
+            {
+                logger.Error($"Failed to place LIMIT order (cross: {cross}, side: {side}, quantity: {quantity:N0}, stopPrice: {stopPrice}, tif: {tif})");
+                return null;
+            }
         }
 
         public async Task<Order> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
@@ -672,12 +713,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             // 1. Prepare the market order
             Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
-            order.Type = MARKET;
 
-            // 2. Add the order to the placement queue
-            logger.Debug($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            if (order != null)
+            {
+                order.Type = MARKET;
 
-            return PlaceOrder(order);
+                // 2. Add the order to the placement queue
+                logger.Debug($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+                return PlaceOrder(order);
+            }
+            else
+            {
+                logger.Error($"Failed to place MARKET order (cross: {cross}, side: {side}, quantity: {quantity:N0}, tif: {tif})");
+                return null;
+            }
         }
 
         public async Task<Order> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
@@ -702,13 +752,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             // 1. Prepare the order
             Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
-            order.Type = TRAILING_MARKET_IF_TOUCHED;
-            order.TrailingAmount = trailingAmount;
 
-            // 2. Add the order to the placement queue
-            logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            if (order != null)
+            {
+                order.Type = TRAILING_MARKET_IF_TOUCHED;
+                order.TrailingAmount = trailingAmount;
 
-            return PlaceOrder(order);
+                // 2. Add the order to the placement queue
+                logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+                return PlaceOrder(order);
+            }
+            else
+            {
+                logger.Error($"Failed to place TRAILING_MARKET_IF_TOUCHED order (cross: {cross}, side: {side}, quantity: {quantity:N0}, trailingAmount: {trailingAmount}, tif: {tif})");
+                return null;
+            }
         }
 
         public async Task<Order> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
@@ -733,13 +792,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             // 1. Prepare the order
             Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
-            order.Type = TRAILING_STOP;
-            order.TrailingAmount = trailingAmount;
 
-            // 2. Add the order to the placement queue
-            logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+            if (order != null)
+            {
+                order.Type = TRAILING_STOP;
+                order.TrailingAmount = trailingAmount;
 
-            return PlaceOrder(order);
+                // 2. Add the order to the placement queue
+                logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+
+                return PlaceOrder(order);
+            }
+            else
+            {
+                logger.Error($"Failed to place TRAILING_STOP order (cross: {cross}, side: {side}, quantity: {quantity:N0}, trailingAmount: {trailingAmount}, tif: {tif})");
+                return null;
+            }
         }
 
         private Order PlaceOrder(Order order)
@@ -853,7 +921,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
             else
             {
-                openPositions = openPositions.Where(p => crosses.Contains(p.Key)).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                openPositions = openPositions.Where(p => crosses.Contains(p.Key)).Where(p => p.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
                 if (openPositions.IsNullOrEmpty())
                 {
