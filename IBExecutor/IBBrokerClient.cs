@@ -20,16 +20,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
     {
         private static ILog logger = LogManager.GetLogger(nameof(BrokerClient));
 
-        private const string ClientNameKey = "Name";
-        private const string ClientNumberKey = "ClientNumber";
-        private const string ClientHostKey = "Host";
-        private const string ClientPortKey = "Port";
-        private const string ClientTradingAccountKey = "TradingAccount";
-        private const string IBDataServiceEndpointKey = "IBDataServiceEndpoint";
         private const string IsConnectedKey = "IsConnected";
         private const string MessageKey = "Message";
-        private const string StatusKey = "Status";
-        private const string SuccessKey = "Success";
 
         private static BrokerClient _instance;
 
@@ -59,7 +51,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public ITradesExecutor TradesExecutor { get { return tradesExecutor; } }
 
         private readonly string monitoringEndpoint;
-        private readonly string ibDataServiceEndpoint;
 
         private SystemStatus Status { get; set; }
         public event Action<SystemStatus> StatusUpdated;
@@ -72,13 +63,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, string ibDataServiceEndpoint, CancellationToken stopRequestedCt)
+        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
             this.brokerClientType = clientType;
             this.clientName = clientName;
             this.tradingExecutorRunner = tradingExecutorRunner;
             this.monitoringEndpoint = monitoringEndpoint;
-            this.ibDataServiceEndpoint = ibDataServiceEndpoint;
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -94,90 +84,35 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             statusUpdateTimer = new Timer(state => SendStatusUpdate(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
         }
 
-        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, Dictionary<string, object> clientConfig, IFxConverter fxConverter, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks, IEnumerable<Contract> ibContracts)
+        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, GenericIBClientConfig clientConfig, IFxConverter fxConverter, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks, IEnumerable<Contract> ibContracts)
         {
             if (clientConfig == null)
                 throw new ArgumentNullException(nameof(clientConfig));
 
-            #region ClientNameKey
-            if (!clientConfig.ContainsKey(ClientNameKey))
-                throw new ArgumentNullException(nameof(ClientNameKey));
-
-            string name = clientConfig[ClientNameKey]?.ToString();
-
-            if (string.IsNullOrEmpty(name))
-                throw new ArgumentException($"Failed to parse config key {ClientNameKey} as string");
-            #endregion
-
-            #region ClientNumberKey
-            if (!clientConfig.ContainsKey(ClientNumberKey))
-                throw new ArgumentNullException(nameof(ClientNumberKey));
-
-            int number;
-            if (!int.TryParse(clientConfig[ClientNumberKey]?.ToString(), out number))
-                throw new ArgumentException($"Failed to parse config key {ClientNumberKey} as int");
-            #endregion
-
-            #region ClientHostKey
-            if (!clientConfig.ContainsKey(ClientHostKey))
-                throw new ArgumentNullException(nameof(ClientHostKey));
-
-            string host = clientConfig[ClientHostKey]?.ToString();
-
-            if (string.IsNullOrEmpty(host))
-                throw new ArgumentException($"Failed to parse config key {ClientHostKey} as string");
-            #endregion
-
-            #region ClientPortKey
-            if (!clientConfig.ContainsKey(ClientPortKey))
-                throw new ArgumentNullException(nameof(ClientPortKey));
-
-            int port;
-            if (!int.TryParse(clientConfig[ClientPortKey]?.ToString(), out port))
-                throw new ArgumentException($"Failed to parse config key {ClientPortKey} as int");
-            #endregion
-
-            #region ClientTradingAccountKey
-            if (!clientConfig.ContainsKey(ClientTradingAccountKey))
-                throw new ArgumentNullException(nameof(ClientTradingAccountKey));
-
-            string tradingAccount = clientConfig[ClientTradingAccountKey]?.ToString();
-
-            if (string.IsNullOrEmpty(tradingAccount))
-                throw new ArgumentException($"Failed to parse config key {ClientTradingAccountKey} as string");
-            #endregion
-
-            #region IBDataServiceEndpoint
-            if (!clientConfig.ContainsKey(IBDataServiceEndpointKey) || string.IsNullOrEmpty(clientConfig[IBDataServiceEndpointKey]?.ToString()))
-                throw new ArgumentNullException(nameof(IBDataServiceEndpointKey));
-
-            string ibDataServiceEndpoint = clientConfig[IBDataServiceEndpointKey].ToString();
-            #endregion
-
             if (fxConverter == null)
                 throw new ArgumentNullException(nameof(fxConverter));
 
-            logger.Debug($"Loading IB client config for {name}");
-            logger.Debug($"ClientNumber: {number}");
-            logger.Debug($"IBHost: {host}");
-            logger.Debug($"IBPort: {port}");
-            logger.Debug($"TradingAccount: {tradingAccount}");
-            logger.Debug($"IBDataServiceEndpoint: {ibDataServiceEndpoint}");
+            logger.Debug($"Loading IB client config for {clientConfig.Name}");
+            logger.Debug($"ClientNumber: {clientConfig.ClientNumber}");
+            logger.Debug($"IBHost: {clientConfig.Host}");
+            logger.Debug($"IBPort: {clientConfig.Port}");
+            logger.Debug($"TradingAccount: {clientConfig.TradingAccount}");
+            logger.Debug($"IBDataServiceEndpoint: {clientConfig.IBDataServiceEndpoint}");
 
-            APIErrorCodesConnector errorCodesConnector = APIErrorCodesConnector.GetConnector(ibDataServiceEndpoint);
+            APIErrorCodesConnector errorCodesConnector = APIErrorCodesConnector.GetConnector(clientConfig.IBDataServiceEndpoint);
             List<APIErrorCode> ibApiErrorCodes = await errorCodesConnector.GetAll(stopRequestedCt);
 
-            _instance = new BrokerClient(clientType, tradingExecutorRunner, number, name, host, port, ibApiErrorCodes, monitoringEndpoint, ibDataServiceEndpoint, stopRequestedCt);
+            _instance = new BrokerClient(clientType, tradingExecutorRunner, clientConfig.ClientNumber, clientConfig.Name, clientConfig.Host, clientConfig.Port, ibApiErrorCodes, monitoringEndpoint, stopRequestedCt);
 
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
 
-            await _instance.SetupExecutors(fxConverter, mdConnector, tradingAccount, logTicks, stopRequestedCt, ibContracts);
+            _instance.SetupExecutors(fxConverter, mdConnector, clientConfig.TradingAccount, logTicks, stopRequestedCt, ibContracts);
 
             return _instance;
         }
 
-        private async Task SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
+        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
         {
             if (brokerClientType != IBrokerClientType.MarketData)
             {
@@ -192,7 +127,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Setting up market data provider and news bulletins provider");
 
-                marketDataProvider = await IBMarketDataProvider.SetupIBMarketDataProvider(this, ibClient, ibDataServiceEndpoint, logTicks, stopRequestedCt);
+                marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, logTicks, stopRequestedCt);
                 newsBulletinProvider = new IBNewsBulletinProvider(ibClient, stopRequestedCt);
             }
         }

@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using log4net;
 using System.Collections.Concurrent;
 using System.Threading;
-using Capital.GSG.FX.IBData.Service.Connector;
 using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Data.Core.ContractData;
 using Capital.GSG.FX.Data.Core.MarketData;
@@ -19,8 +18,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
     {
         private static ILog logger = LogManager.GetLogger(nameof(IBMarketDataProvider));
 
-        private static IBMarketDataProvider _instance;
-
         private readonly Dictionary<int, MarketDataRequest> marketDataRequests = new Dictionary<int, MarketDataRequest>();
 
         private readonly ConcurrentDictionary<Cross, RTBar> currentRtBars = new ConcurrentDictionary<Cross, RTBar>();
@@ -30,11 +27,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private readonly BrokerClient brokerClient;
         private readonly IBClient ibClient;
-        private readonly ContractsConnector contractsConnector;
         private readonly bool logTicks;
         private readonly CancellationToken stopRequestedCt;
 
-        private IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, string ibDataServiceEndpoint, bool logTicks, CancellationToken stopRequestedCt)
+        internal IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, IEnumerable<Contract> ibContracts, bool logTicks, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -42,12 +38,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (ibClient == null)
                 throw new ArgumentNullException(nameof(ibClient));
 
-            if (string.IsNullOrEmpty(ibDataServiceEndpoint))
-                throw new ArgumentNullException(nameof(ibDataServiceEndpoint));
-
             this.brokerClient = brokerClient;
-
-            contractsConnector = ContractsConnector.GetConnector(ibDataServiceEndpoint);
 
             this.stopRequestedCt = stopRequestedCt;
 
@@ -69,28 +60,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.logTicks = logTicks;
 
+            SetupMarketDataRequests(ibContracts);
+
             SetupEventListeners();
         }
 
-        internal static async Task<IBMarketDataProvider> SetupIBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, string ibDataServiceEndpoint, bool logTicks, CancellationToken stopRequestedCt)
+        private void SetupMarketDataRequests(IEnumerable<Contract> ibContracts)
         {
-            _instance = new IBMarketDataProvider(brokerClient, ibClient, ibDataServiceEndpoint, logTicks, stopRequestedCt);
-
-            await _instance.LoadContracts();
-
-            return _instance;
-        }
-
-        private async Task LoadContracts()
-        {
-            List<Contract> list = await contractsConnector.GetAll(stopRequestedCt);
-
-            if (!list.IsNullOrEmpty())
+            if (!ibContracts.IsNullOrEmpty())
             {
                 marketDataRequests.Clear();
 
                 int counter = 10;
-                foreach (Contract contract in list)
+                foreach (Contract contract in ibContracts)
                 {
                     marketDataRequests.Add(counter + 0, new MarketDataRequest(counter + 0, contract.Cross, contract, MarketDataRequestType.MarketDataTick));
                     marketDataRequests.Add(counter + 1, new MarketDataRequest(counter + 1, contract.Cross, contract, MarketDataRequestType.RtBarBid));

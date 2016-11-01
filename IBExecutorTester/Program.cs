@@ -19,6 +19,7 @@ using static Capital.GSG.FX.Data.Core.ContractData.Cross;
 using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Data.Core.ExecutionData;
 using Capital.GSG.FX.IBData.Service.Connector;
+using Capital.GSG.FX.Data.Core.SystemData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -46,16 +47,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             XmlConfigurator.Configure();
 
-            Dictionary<string, object> brokerClientConfig = new Dictionary<string, object>() {
-                { "Name", "IB_MDClient_Test" },
-                { "ClientNumber", 7 },
-                { "Host", "tryphon.gsg.capital" },
-                { "Port", 7497 },
-                { "IBControllerPort", 7463 },
-                { "IBControllerServiceEndpoint", "https://tryphon.gsg.capital:6583" },
-                { "IBControllerServiceAppName", "TwsPaper" },
-                { "TradingAccount", "DU215795" },
-                { "IBDataServiceEndpoint", "https://tryphon.gsg.capital:6583" }
+            GenericIBClientConfig brokerClientConfig = new GenericIBClientConfig()
+            {
+                ClientNumber = 7,
+                Host = "tryphon.gsg.capital",
+                IBDataServiceEndpoint = "https://tryphon.gsg.capital:6583",
+                Name = "IB_MDClient_Test",
+                Port = 7497,
+                TradingAccount = "DU519219"
             };
 
             string monitoringEndpoint = "http://localhost:51468/";
@@ -65,7 +64,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             logger.Info("Starting service IBExecutorTester");
 
-            logger.Debug($"BrokerClientConfigId: {brokerClientConfig}");
+            logger.Debug($"BrokerClientConfigId: {brokerClientConfig.Name}");
             logger.Debug($"MonitoringEndpoint: {monitoringEndpoint}");
             logger.Debug($"ConvertServiceEndpoint: {convertServiceEndpoint}");
             logger.Debug($"MDConnector: {marketDataServiceEndpoint}");
@@ -79,7 +78,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Do(brokerClientConfig, azureTableConnectionString).Wait();
         }
 
-        private static async Task Do(Dictionary<string, object> brokerClientConfig, string azureTableConnectionString)
+        private static async Task Do(GenericIBClientConfig brokerClientConfig, string azureTableConnectionString)
         {
             try
             {
