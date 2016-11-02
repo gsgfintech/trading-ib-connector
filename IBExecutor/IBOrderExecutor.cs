@@ -917,7 +917,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (openPositions.IsNullOrEmpty())
             {
                 logger.Info("No open position. Nothing to close");
-                return null;
+                return new Dictionary<Cross, double?>();
             }
             else
             {
@@ -926,7 +926,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (openPositions.IsNullOrEmpty())
                 {
                     logger.Info("No open position. Nothing to close");
-                    return null;
+                    return new Dictionary<Cross, double?>();
                 }
 
                 // 2. Place market orders to close all open positions

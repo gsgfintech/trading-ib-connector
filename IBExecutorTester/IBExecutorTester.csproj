@@ -37,8 +37,8 @@
       <HintPath>..\packages\AzureTableConnector.2.0.0\lib\net46\AzureTableConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.12.4.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.12.4\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.12.5.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.12.5\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -49,8 +49,8 @@
       <HintPath>..\packages\Capital.GSG.FX.FXConverterServiceConnector.2.0.0\lib\net461\Capital.GSG.FX.FXConverterServiceConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.MarketDataService.Connector, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.1.0\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.MarketDataService.Connector, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.2.0\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.MonitoringAppConnector, Version=1.9.3.0, Culture=neutral, processorArchitecture=MSIL">
