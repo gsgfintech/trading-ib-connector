@@ -186,6 +186,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Subscribe to account updates for {accountName}");
 
             ibClient.RequestManager.AccountRequestManager.SubscribeToAccountUpdates(accountName);
+            ibClient.RequestManager.AccountRequestManager.RequestAllPositions();
 
             accountSubscribed = accountName;
         }
@@ -197,6 +198,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Unsubscribe from account updates for {accountSubscribed}");
 
                 ibClient.RequestManager.AccountRequestManager.UnsubscribeFromAccountUpdates(accountSubscribed);
+                ibClient.RequestManager.AccountRequestManager.CancelRealTimePositionUpdates();
+
                 accountSubscribed = null;
             }
         }
