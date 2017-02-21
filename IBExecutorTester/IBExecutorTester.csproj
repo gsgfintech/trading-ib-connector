@@ -37,8 +37,8 @@
       <HintPath>..\packages\AzureTableConnector.2.0.1\lib\net46\AzureTableConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.15.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.15.2\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.16.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.16.2\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -109,8 +109,8 @@
       <HintPath>..\packages\Microsoft.WindowsAzure.ConfigurationManager.3.2.3\lib\net40\Microsoft.WindowsAzure.Configuration.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Microsoft.WindowsAzure.Storage, Version=8.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\WindowsAzure.Storage.8.0.1\lib\net45\Microsoft.WindowsAzure.Storage.dll</HintPath>
+    <Reference Include="Microsoft.WindowsAzure.Storage, Version=8.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\WindowsAzure.Storage.8.1.0\lib\net45\Microsoft.WindowsAzure.Storage.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="MongoDB.Bson, Version=2.4.2.27, Culture=neutral, processorArchitecture=MSIL">
@@ -256,8 +256,8 @@
       <HintPath>..\packages\System.Xml.XmlDocument.4.3.0\lib\net46\System.Xml.XmlDocument.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TradingExecutor.Core, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\TradingExecutor.Core.1.0.0\lib\net46\TradingExecutor.Core.dll</HintPath>
+    <Reference Include="TradingExecutor.Core, Version=1.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TradingExecutor.Core.1.0.1\lib\net46\TradingExecutor.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>

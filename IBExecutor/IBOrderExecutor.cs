@@ -545,7 +545,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin)
+        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin, string groupId)
         {
             if (cross == Cross.UNKNOWN)
             {
@@ -585,6 +585,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 LastBid = latest?.Bid.Close,
                 LastMid = latest?.Mid.Close,
                 Origin = origin,
+                GroupId = groupId,
                 Status = PreSubmitted,
                 History = new List<OrderHistoryPoint>(),
                 LastUpdateTime = DateTimeOffset.Now,
@@ -612,7 +613,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return order;
         }
 
-        public async Task<Order> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceLimitOrder(Cross cross, OrderSide side, int quantity, double limitPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, string groupId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -633,7 +634,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing LIMIT order: {side} {quantity} {cross} @ {limitPrice} (TIF: {tif})");
 
             // 1. Prepare the limit order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId);
 
             if (order != null)
             {
@@ -652,7 +653,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<Order> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceStopOrder(Cross cross, OrderSide side, int quantity, double stopPrice, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, string groupId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -673,7 +674,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing STOP order: {side} {quantity} {cross} @ {stopPrice} (TIF: {tif})");
 
             // 1. Prepare the limit order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId);
             if (order != null)
             {
                 order.Type = STOP;
@@ -691,7 +692,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<Order> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, string groupId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -712,7 +713,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
 
             // 1. Prepare the market order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId);
 
             if (order != null)
             {
@@ -730,7 +731,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<Order> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceTrailingMarketIfTouchedOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, string groupId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -751,7 +752,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing TRAILING_MARKET_IF_TOUCHED order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
 
             // 1. Prepare the order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId);
 
             if (order != null)
             {
@@ -770,7 +771,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<Order> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, CancellationToken ct = default(CancellationToken))
+        public async Task<Order> PlaceTrailingStopOrder(Cross cross, OrderSide side, int quantity, double trailingAmount, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, string groupId = null, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
@@ -791,7 +792,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing TRAILING_STOP order: {side} {quantity} {cross} @ {trailingAmount} (TIF: {tif})");
 
             // 1. Prepare the order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId);
 
             if (order != null)
             {
@@ -1001,7 +1002,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 case LIMIT:
                     // 1. Place new order
-                    Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
 
                     if (newLimitOrder != null)
                     {
@@ -1017,7 +1018,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     return newLimitOrder;
                 case STOP:
                     // 1. Place new order
-                    Order newStopOrder = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, ct);
+                    Order newStopOrder = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
 
                     if (newStopOrder != null)
                     {

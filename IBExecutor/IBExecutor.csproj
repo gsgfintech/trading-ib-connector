@@ -31,8 +31,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.15.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.15.2\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.16.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.16.2\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -153,8 +153,8 @@
       <HintPath>..\packages\System.Xml.ReaderWriter.4.3.0\lib\net46\System.Xml.ReaderWriter.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TradingExecutor.Core, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\TradingExecutor.Core.1.0.0\lib\net46\TradingExecutor.Core.dll</HintPath>
+    <Reference Include="TradingExecutor.Core, Version=1.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TradingExecutor.Core.1.0.1\lib\net46\TradingExecutor.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="TWSLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">

@@ -113,6 +113,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Order order = (brokerClient.OrderExecutor as IBOrderExecutor)?.GetOrder(execution.OrderId);
 
             execution.OrderOrigin = order?.Origin ?? OrderOrigin.Unknown;
+            execution.OrderGroupId = order?.GroupId;
         }
 
         private DateTimeOffset? GetPreviousExecutionTimeForCross(Cross cross)
