@@ -157,10 +157,6 @@
       <HintPath>..\packages\TradingExecutor.Core.1.0.1\lib\net46\TradingExecutor.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TWSLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\InteractiveBrokerTwsAPI.9.71.6\lib\net46\TWSLib.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IBBrokerClient.cs" />

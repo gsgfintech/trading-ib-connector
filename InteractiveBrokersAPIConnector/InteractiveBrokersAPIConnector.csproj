@@ -43,6 +43,10 @@
       <HintPath>..\packages\IBData.1.0.0\lib\net46\IBData.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="InteractiveBrokers.TwsApi, Version=9.72.18.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\InteractiveBrokers.TwsApi.9.72.18\lib\net46\InteractiveBrokers.TwsApi.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="log4net, Version=2.0.7.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <HintPath>..\packages\log4net.2.0.7\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
@@ -135,10 +139,6 @@
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.ReaderWriter, Version=4.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Xml.ReaderWriter.4.3.0\lib\net46\System.Xml.ReaderWriter.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="TWSLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\InteractiveBrokerTwsAPI.9.71.6\lib\net46\TWSLib.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
