@@ -153,7 +153,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.ibClient = ibClient;
 
-            this.ibClient.ResponseManager.OpenOrdersReceived += ResponseManager_OpenOrdersReceived;
+            this.ibClient.ResponseManager.OpenOrdersReceived += OnOpenOrdersReceived;
             this.ibClient.ResponseManager.OrderStatusChangeReceived += OnOrderStatusChangeReceived;
 
             this.ibClient.IBConnectionEstablished += () =>
@@ -203,14 +203,28 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             SendError($"Unconfirmed order {kvp.Key}", err);
                             await CancelOrder(kvp.Key);
 
-                            OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
+                            int tries = 0;
+
+                            while (!IsConfirmedCancelled(kvp.Key) && tries < 5)
+                            {
+                                tries++;
+
+                                if (tries == 5)
+                                {
+                                    string err2 = $"Order {kvp.Key} has still not been confirmed cancelled after 5 seconds";
+                                    logger.Error(err2);
+                                    SendError($"Order not cancelled {kvp.Key}", err);
+
+                                    OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        private void ResponseManager_OpenOrdersReceived(int orderId, Contract contract, Order order, OrderState orderState)
+        private void OnOpenOrdersReceived(int orderId, Contract contract, Order order, OrderState orderState)
         {
             logger.Info($"Received notification of open order: {orderId} (perm ID: {order.PermanentID})");
 
@@ -860,6 +874,36 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersToCancelQueue.Enqueue(orderId);
 
             return true;
+        }
+
+        private OrderStatusCode? RefreshOrderStatus(int orderId, CancellationToken ct = default(CancellationToken))
+        {
+            try
+            {
+                // Refresh the list of orders
+                RequestOpenOrders();
+
+                Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+
+                Order order;
+                if (orders.TryGetValue(orderId, out order))
+                    return order.Status;
+                else
+                    logger.Error($"Unable to find order {orderId} in the list of orders");
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"Failed to check status of order {orderId}", ex);
+            }
+
+            return null;
+        }
+
+        private bool IsConfirmedCancelled(int orderId, CancellationToken ct = default(CancellationToken))
+        {
+            var status = RefreshOrderStatus(orderId, ct);
+
+            return status == ApiCanceled || status == Cancelled;
         }
 
         public async Task<bool> CancelAllOrders(IEnumerable<Cross> crosses, CancellationToken ct = default(CancellationToken))
