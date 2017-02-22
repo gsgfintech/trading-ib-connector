@@ -31,8 +31,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.16.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.16.2\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.16.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.16.3\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -116,7 +116,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Net.Http, Version=4.1.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Net.Http.4.3.0\lib\net46\System.Net.Http.dll</HintPath>
+      <HintPath>..\packages\System.Net.Http.4.3.1\lib\net46\System.Net.Http.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Net.Sockets, Version=4.1.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
