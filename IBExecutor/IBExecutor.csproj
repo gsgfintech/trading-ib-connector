@@ -55,6 +55,10 @@
       <HintPath>..\packages\IBData.Service.Connector.2.0.0\lib\net46\IBData.Service.Connector.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="InteractiveBrokers.TwsApi, Version=9.72.18.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\InteractiveBrokers.TwsApi.9.72.18\lib\net46\InteractiveBrokers.TwsApi.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="log4net, Version=2.0.7.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <HintPath>..\packages\log4net.2.0.7\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
