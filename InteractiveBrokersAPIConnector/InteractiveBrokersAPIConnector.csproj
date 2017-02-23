@@ -31,8 +31,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.16.3.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.16.3\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.16.4.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.16.4\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Capital.GSG.FX.Utils.Core, Version=1.2.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -41,6 +41,10 @@
     </Reference>
     <Reference Include="IBData, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IBData.1.0.0\lib\net46\IBData.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="InteractiveBrokers.TwsApi, Version=9.72.18.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\InteractiveBrokers.TwsApi.9.72.18\lib\net46\InteractiveBrokers.TwsApi.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="log4net, Version=2.0.7.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
@@ -137,10 +141,6 @@
       <HintPath>..\packages\System.Xml.ReaderWriter.4.3.0\lib\net46\System.Xml.ReaderWriter.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TWSLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\InteractiveBrokerTwsAPI.9.71.6\lib\net46\TWSLib.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Extensions\IBCommissionReportExtensions.cs" />
@@ -182,6 +182,8 @@
     <Compile Include="Responses\NewsBulletinEventResponseManager.cs" />
     <Compile Include="Responses\OrderEventResponseManager.cs" />
     <Compile Include="Responses\RealTimeBarEventResponseManager.cs" />
+    <Compile Include="Responses\SecurityDefinitionOptionEventsResponseManager.cs" />
+    <Compile Include="Responses\SoftDollarTierEventResponseManager.cs" />
     <Compile Include="ServerLogLevel.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -73,7 +73,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
 
-                int nextId = await ibClient.RequestManager.OrdersRequestManager.GetNextValidOrderID(internalCts.Token);
+                int nextId = ibClient.RequestManager.OrdersRequestManager.GetNextValidOrderID(internalCts.Token);
 
                 sw.Stop();
 
@@ -294,7 +294,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             brokerClient.OnAlert(new Alert() { Level = AlertLevel.FATAL, Source = nameof(IBOrderExecutor), Subject = subject, Body = body, ActionUrl = actionUrl, Timestamp = DateTimeOffset.Now, AlertId = Guid.NewGuid().ToString() });
         }
 
-        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, int? filledQuantity, int? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
+        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, double? filledQuantity, double? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
         {
             logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
 

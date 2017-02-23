@@ -10,7 +10,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public event Action<int> NextValidIDReceived;
         public event Action<int, Contract, Order, OrderState> OpenOrdersReceived;
         public event Action OrderOpenRequestEnd;
-        public event Action<int, OrderStatusCode?, int?, int?, double?, int, int?, double?, int, string> OrderStatusChangeReceived;
+        public event Action<int, OrderStatusCode?, double?, double?, double?, int, int?, double?, int, string> OrderStatusChangeReceived;
 
         /// <summary>
         /// Upon accepting a Delta-Neutral RFQ(request for quote), the server sends a deltaNeutralValidation() message with the UnderComp structure. 
@@ -76,11 +76,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// This parameter is valid only if the filled parameter value is greater than zero. Otherwise, the price parameter will be zero</param>
         /// <param name="clientId">The ID of the client (or TWS) that placed the order. Note that TWS orders have a fixed clientId and orderId of 0 that distinguishes them from API orders</param>
         /// <param name="whyHeld">This field is used to identify an order held when TWS is trying to locate shares for a short sell. The value used to indicate this is 'locate'</param>
-        public void orderStatus(int orderId, string statusStr, int filledQuantity, int remainingQuantity, double avgFillPrice, int permId, int parentId, double lastFillPrice, int clientId, string whyHeld)
+        public void orderStatus(int orderId, string statusStr, double filledQuantity, double remainingQuantity, double avgFillPrice, int permId, int parentId, double lastFillPrice, int clientId, string whyHeld)
         {
             OrderStatusCode status = OrderStatusCodeUtils.GetFromStrCode(statusStr);
 
-            OrderStatusChangeReceived?.Invoke(orderId, status != OrderStatusCode.UNKNOWN ? status : (OrderStatusCode?)null, filledQuantity > 0 ? filledQuantity : (int?)null, remainingQuantity > 0 ? remainingQuantity : (int?)null, avgFillPrice > 0 ? avgFillPrice : (double?)null, permId, parentId > 0 ? parentId : (int?)null, lastFillPrice > 0 ? lastFillPrice : (double?)null, clientId, whyHeld);
+            OrderStatusChangeReceived?.Invoke(orderId, status != OrderStatusCode.UNKNOWN ? status : (OrderStatusCode?)null, filledQuantity > 0 ? filledQuantity : (double?)null, remainingQuantity > 0 ? remainingQuantity : (double?)null, avgFillPrice > 0 ? avgFillPrice : (double?)null, permId, parentId > 0 ? parentId : (int?)null, lastFillPrice > 0 ? lastFillPrice : (double?)null, clientId, whyHeld);
         }
     }
 }

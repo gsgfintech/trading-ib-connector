@@ -90,7 +90,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Trading, tradingExecutorRunner, brokerClientConfig, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts);
+                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Both, tradingExecutorRunner, brokerClientConfig, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts);
                 ((BrokerClient)brokerClient).StopComplete += (() => stopCompleteEvent.Set());
                 ((BrokerClient)brokerClient).AlertReceived += (alert) =>
                 {
@@ -132,9 +132,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //    }
                 //}, null, 1000, 1000);
 
-                //await SubscribeAndListenRTBars(brokerClient);
+                await SubscribeAndListenRTBars(brokerClient);
 
-                await PlaceLimitOrders(brokerClient.OrderExecutor);
+                //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
                 //await PlaceMarketOrders(brokerClient.OrderExecutor);
@@ -267,7 +267,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task PlaceLimitOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceLimitOrder(EURUSD, OrderSide.SELL, 20000, 1.125, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order1 = await orderExecutor.PlaceLimitOrder(EURCHF, SELL, 20000, 1.125, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("LimitOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 

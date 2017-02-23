@@ -55,7 +55,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                 PermanentID = ibOrder.PermId,
                 Side = OrderSideUtils.GetFromStringCode(ibOrder.Action),
                 TimeInForce = TimeInForceUtils.GetFromStringCode(ibOrder.Tif),
-                Quantity = ibOrder.TotalQuantity,
+                Quantity = (int)ibOrder.TotalQuantity,
                 Type = IBStringToOrderType(ibOrder.OrderType),
             };
         }

@@ -1,5 +1,6 @@
 ﻿using IBApi;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Requests;
+using System.Threading;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
@@ -22,6 +23,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public FundamentalDataRequestManager FundamentalDataRequestManager { get; private set; }
         public DisplayGroupsRequestManager DisplayGroupsRequestManager { get; private set; }
 
+        private readonly EReaderMonitorSignal signal = new EReaderMonitorSignal();
+
         public IBClientRequestsManager(IBClientResponsesManager responseManager = null)
         {
             if (responseManager == null)
@@ -29,7 +32,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             else
                 ResponseManager = responseManager;
 
-            ClientSocket = new EClientSocket(ResponseManager);
+            ClientSocket = new EClientSocket(ResponseManager, signal);
 
             MarketDataRequestManager = new MarketDataRequestManager(this);
             OrdersRequestManager = new OrdersRequestManager(this);
@@ -62,6 +65,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public void Connect(int clientID, string host = "", int port = 4001)
         {
             ClientSocket.eConnect(host, port, clientID);
+
+            var reader = new EReader(ClientSocket, signal);
+
+            reader.Start();
+
+            new Thread(() => { while (ClientSocket.IsConnected()) { signal.waitForSignal(); reader.processMsgs(); } }) { IsBackground = true }.Start();
         }
 
         /// <summary>

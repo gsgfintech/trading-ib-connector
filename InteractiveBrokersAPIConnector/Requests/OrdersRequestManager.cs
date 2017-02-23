@@ -18,6 +18,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         private int _nextValidOrderID = -1;
         private object _nextValidOrderIDLocker = new object();
 
+        private readonly AutoResetEvent waitingForNextValidOrderId = new AutoResetEvent(false);
+
         public OrdersRequestManager(IBClientRequestsManager requestsManager)
         {
             ClientSocket = requestsManager.ClientSocket;
@@ -75,42 +77,74 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             ClientSocket.reqAutoOpenOrders(autoBindNewTWSOrdersToThisClient);
         }
 
-        public async Task<int> GetNextValidOrderID(CancellationToken ct)
+        //public async Task<int> GetNextValidOrderID(CancellationToken ct)
+        public int GetNextValidOrderID(CancellationToken ct)
         {
-            logger.Debug("Requesting next valid order ID");
-
-            _responseManager.NextValidIDReceived += ResponseManager_NextValidIDReceived;
-
-            ClientSocket.reqIds(1); // set to 1 as per IB's documentation
-
-            return await Task.Run(() =>
+            try
             {
-                try
-                {
-                    while (_nextValidOrderID < 0)
-                    {
-                        ct.ThrowIfCancellationRequested();
+                ct.ThrowIfCancellationRequested();
 
-                        Task.Delay(TimeSpan.FromMilliseconds(500)).Wait();
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    logger.Debug("Cancelling next valid order ID from IB waiting loop");
-                }
+                logger.Debug("Requesting next valid order ID");
+
+                _responseManager.NextValidIDReceived += ResponseManager_NextValidIDReceived;
+
+                ClientSocket.reqIds(1); // set to 1 as per IB's documentation
+
+                waitingForNextValidOrderId.WaitOne(TimeSpan.FromSeconds(2.5));
 
                 _responseManager.NextValidIDReceived -= ResponseManager_NextValidIDReceived;
 
-                int nextValidOrderID = _nextValidOrderID;
+                waitingForNextValidOrderId.Reset();
+            }
+            catch (OperationCanceledException)
+            {
+                logger.Error("Not requesting next valid order ID: operation cancelled");
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Failed to get next valid order ID", ex);
+            }
 
-                // Reset the _nextValidOrderID member to its original invalid value of -1
-                lock (_nextValidOrderIDLocker)
-                {
-                    _nextValidOrderID = -1;
-                }
+            return _nextValidOrderID;
 
-                return nextValidOrderID;
-            }, ct);
+            //_responseManager.NextValidIDReceived += ResponseManager_NextValidIDReceived;
+
+            //ClientSocket.reqIds(1); // set to 1 as per IB's documentation
+
+            //return await Task.Run(() =>
+            //{
+            //    try
+            //    {
+            //        while (_nextValidOrderID < 0)
+            //        {
+            //            ct.ThrowIfCancellationRequested();
+
+            //            Task.Delay(TimeSpan.FromMilliseconds(500)).Wait();
+            //        }
+
+            //        _responseManager.NextValidIDReceived -= ResponseManager_NextValidIDReceived;
+
+            //        int nextValidOrderID = _nextValidOrderID;
+
+            //        // Reset the _nextValidOrderID member to its original invalid value of -1
+            //        lock (_nextValidOrderIDLocker)
+            //        {
+            //            _nextValidOrderID = -1;
+            //        }
+
+            //        return nextValidOrderID;
+            //    }
+            //    catch (OperationCanceledException)
+            //    {
+            //        logger.Debug("Cancelling next valid order ID from IB waiting loop");
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        logger.Error("Failed to request next valid order ID", ex);
+            //    }
+
+            //    return -1;
+            //}, ct);
         }
 
         private void ResponseManager_NextValidIDReceived(int nextValidOrderID)
@@ -119,8 +153,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 
             lock (_nextValidOrderIDLocker)
             {
-                this._nextValidOrderID = nextValidOrderID;
+                _nextValidOrderID = nextValidOrderID;
             }
+
+            waitingForNextValidOrderId.Set();
         }
 
         /// <summary>
