@@ -37,6 +37,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 
         private Dictionary<int, APIErrorCode> ibApiErrorCodesDict = null;
 
+        private readonly AutoResetEvent connectionEstablished = new AutoResetEvent(false);
+
         public IBClient(int clientID, string clientName, string ibHost, int ibPort, IEnumerable<APIErrorCode> ibApiErrorCodes, CancellationToken stopRequestedCt)
         {
             ClientID = clientID;
@@ -121,7 +123,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             {
                 stopRequestedCt.ThrowIfCancellationRequested();
 
+                ResponseManager.ConnectionOpened += () =>
+                {
+                    logger.Info("Successfully connected");
+
+                    connectionEstablished.Set();
+                };
+
                 RequestManager.Connect(ClientID, IBHost, IBPort);
+
+                connectionEstablished.WaitOne();
+
+                connectionEstablished.Reset();
 
                 return true;
             }

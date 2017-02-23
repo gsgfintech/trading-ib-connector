@@ -13,14 +13,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public event Action<APIError> ErrorMessageReceived;
         public event Func<string, string> LegacyErrorMessageReceived;
         public event Func<bool, string, bool> VerifyAPICompleted;
-        public event Func<string, string> VerifyAPIMessageReceived;
+        public event Func<string, string, string> VerifyAPIMessageReceived;
+
+        public event Action ConnectionOpened;
         public event Action ConnectionClosed;
 
-        private EClientSocket ClientSocket { get; set; }
-
-        public IBClientResponsesManager()
+        /// <summary>
+        /// Callback signifying completion of successful connection
+        /// </summary>
+        public void connectAck()
         {
-            ClientSocket = new EClientSocket(this);
+            ConnectionOpened?.Invoke();
         }
 
         public void connectionClosed()
@@ -71,9 +74,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             VerifyAPICompleted?.Invoke(isSuccessful, errorText);
         }
 
+        public void verifyAndAuthCompleted(bool isSuccessful, string errorText)
+        {
+            VerifyAPICompleted?.Invoke(isSuccessful, errorText);
+        }
+
+        [Obsolete]
         public void verifyMessageAPI(string apiData)
         {
-            VerifyAPIMessageReceived?.Invoke(apiData);
+            VerifyAPIMessageReceived?.Invoke(apiData, null);
+        }
+
+        public void verifyAndAuthMessageAPI(string apiData, string xyzChallenge)
+        {
+            VerifyAPIMessageReceived?.Invoke(apiData, xyzChallenge);
         }
     }
 }

@@ -74,7 +74,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return _instance;
         }
 
-        private void ResponseManager_PortfolioUpdated(Contract contract, int quantity, double marketPrice, double marketValue, double averageCost, double unrealisedPNL, double realisedPNL, string account)
+        private void ResponseManager_PortfolioUpdated(Contract contract, double quantity, double marketPrice, double marketValue, double averageCost, double unrealisedPNL, double realisedPNL, string account)
         {
             Cross cross = contract.Cross;
 
