@@ -4,12 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Capital.GSG.FX.MonitoringAppConnector;
 using System.Collections.Concurrent;
 using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.FXConverterServiceConnector;
-using Capital.GSG.FX.AzureTableConnector;
 using Capital.GSG.FX.Data.Core.OrderData;
 using static Capital.GSG.FX.Data.Core.OrderData.OrderSide;
 using static Capital.GSG.FX.Data.Core.OrderData.TimeInForce;
@@ -28,9 +26,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private static ILog logger = LogManager.GetLogger(nameof(Program));
 
         private static IFxConverter fxConverter;
-        private static PositionsConnector positionsConnector;
-        private static ExecutionsConnector executionsConnector;
-        private static OrdersConnector ordersConnector = null;
         private static MDConnector mdConnector = null;
 
         private static CancellationTokenSource stopRequestedCts = new CancellationTokenSource();
@@ -70,9 +65,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Debug($"MDConnector: {marketDataServiceEndpoint}");
 
             fxConverter = ConvertConnector.GetConnector(convertServiceEndpoint);
-            positionsConnector = PositionsConnector.GetConnector(monitoringEndpoint);
-            executionsConnector = ExecutionsConnector.GetConnector(monitoringEndpoint);
-            ordersConnector = OrdersConnector.GetConnector(monitoringEndpoint);
             mdConnector = MDConnector.GetConnector(marketDataServiceEndpoint);
 
             Do(brokerClientConfig, azureTableConnectionString).Wait();
