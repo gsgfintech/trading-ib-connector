@@ -1045,6 +1045,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             switch (currentOrder.Type)
             {
                 case LIMIT:
+                    // 1. Cancel existing order
+                    if (await CancelOrder(orderId, ct))
+                    {
+                        logger.Info($"Successfully cancelled current order {orderId}. Will place the updated one");
+
+                        // 2. Place new order
+                        Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
+                    }
+                    else
+                        logger.Error($"Failed to cancel current order {orderId}");
+
+
                     // 1. Place new order
                     Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
 
