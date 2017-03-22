@@ -37,8 +37,8 @@
       <HintPath>..\packages\AzureTableConnector.2.0.2\lib\net46\AzureTableConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.18.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.18.1\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.19.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.19.0\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.3.2.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.FXConverter.1.3.2\lib\net46\Capital.GSG.FX.FXConverter.dll</HintPath>
@@ -242,9 +242,8 @@
       <HintPath>..\packages\System.Xml.XmlDocument.4.3.0\lib\net46\System.Xml.XmlDocument.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TradingExecutor.Core, Version=1.0.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\TradingExecutor.Core.1.0.1\lib\net46\TradingExecutor.Core.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="TradingExecutor.Core, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TradingExecutor.Core.1.1.0\lib\net46\TradingExecutor.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -258,12 +257,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IBExecutor\IBExecutor.csproj">
-      <Project>{d2638968-cc34-41fb-a404-ec4c56f09e6a}</Project>
+      <Project>{b7f067d9-aa1a-4ed7-82df-6ab8de1c73b3}</Project>
       <Name>IBExecutor</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\InteractiveBrokersAPIConnector\InteractiveBrokersAPIConnector.csproj">
-      <Project>{8633e3f2-ecc9-47b2-b133-100a382e37c7}</Project>
-      <Name>InteractiveBrokersAPIConnector</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

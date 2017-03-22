@@ -124,7 +124,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //    }
                 //}, null, 1000, 1000);
 
-                await SubscribeAndListenRTBars(brokerClient);
+                //await SubscribeAndListenRTBars(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
@@ -137,6 +137,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await PlaceTrailingMarketIfTouchedOrders(brokerClient.OrderExecutor);
 
                 //await PlaceTrailingStopOrders(brokerClient.OrderExecutor);
+
+                //await TestPlaceAndCancel(brokerClient.OrderExecutor);
+                //await TestPlaceAndUpdateLimit(brokerClient.OrderExecutor);
+                await TestPlaceAndUpdateStop(brokerClient.OrderExecutor);
 
                 logger.Debug("Sleeping for 10 seconds");
                 Task.Delay(TimeSpan.FromSeconds(10)).Wait();
@@ -160,6 +164,59 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
+        private static async Task TestPlaceAndCancel(IOrderExecutor executor)
+        {
+            // 1. Place a market: should be filled
+            var order = await executor.PlaceMarketOrder(EURUSD, BUY, 20000, GTC, "TestStrat");
+
+            Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+
+            // 2. Attempt to cancel: should fail
+            var cancelResult = await executor.CancelOrder(order.OrderID);
+
+            logger.Info($"Result: success={cancelResult.Success}, message={cancelResult.Message}");
+        }
+
+        private static async Task TestPlaceAndUpdateLimit(IOrderExecutor executor)
+        {
+            // 1. Place a limit: should be filled instantly
+            var order = await executor.PlaceLimitOrder(EURUSD, BUY, 20000, 1.08, GTC, "TestStrat");
+
+            Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+
+            // 2. Attempt to update: should fail
+            var result = await executor.UpdateOrderLevel(order.OrderID, 1.06);
+
+            logger.Info($"Result: success={result.Success}, message={result.Message}");
+        }
+
+        private static async Task TestPlaceAndUpdateStop(IOrderExecutor executor)
+        {
+            // 1. Test failing case
+
+            // 1a. Place a stop: should be filled instantly
+            var order = await executor.PlaceStopOrder(EURUSD, BUY, 20000, 1.07, GTC, "TestStrat");
+
+            Task.Delay(TimeSpan.FromSeconds(10)).Wait();
+
+            // 1b. Attempt to update: should fail
+            var result = await executor.UpdateOrderLevel(order.OrderID, 1.08);
+
+            logger.Info($"Result: success={result.Success}, message={result.Message}");
+
+            // 2. Test good case
+
+            // 2a. Place a stop: should not be filled instantly
+            order = await executor.PlaceStopOrder(EURUSD, SELL, 20000, 1.07, GTC, "TestStrat");
+
+            Task.Delay(TimeSpan.FromSeconds(10)).Wait();
+
+            // 2b. Attempt to update: should succeed
+            result = await executor.UpdateOrderLevel(order.OrderID, 1.08);
+
+            logger.Info($"Result: success={result.Success}, message={result.Message}");
+        }
+
         private static async Task RestartTws(BrokerClient client)
         {
             if (await client.Restart())
@@ -170,7 +227,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task CancelAllOrdersAndClosePositions(IOrderExecutor executor)
         {
-            if (await executor.CancelAllOrders(CrossUtils.AllCrosses))
+            var result = await executor.CancelAllOrders(CrossUtils.AllCrosses);
+            if (result.Success)
             {
                 logger.Info("Cancelled all orders");
 
@@ -180,7 +238,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     logger.Error("Failed to close all positions");
             }
             else
-                logger.Error("Failed to cancel all orders");
+                logger.Error($"Failed to cancel all orders: {result.Message}");
         }
 
         private static async void Program_OrderUpdated(Order order)

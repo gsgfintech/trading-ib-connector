@@ -18,6 +18,7 @@ using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.Data.Core.OrderData;
 using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Utils.Core;
+using Capital.GSG.FX.Data.Core.WebApi;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -55,6 +56,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private List<int> ordersCancelled = new List<int>();
         private ConcurrentDictionary<int, DateTimeOffset> ordersAwaitingPlaceConfirmation = new ConcurrentDictionary<int, DateTimeOffset>();
         private Timer ordersAwaitingPlaceConfirmationTimer = null;
+
+        private ConcurrentDictionary<int, string> failedOrderCancellationRequests = new ConcurrentDictionary<int, string>();
+
+        internal void NotifyOrderCancelRequestFailed(int orderId, string error)
+        {
+            error = error ?? "Unknown error";
+
+            logger.Error($"Failed to cancel order {orderId}: {error}");
+
+            failedOrderCancellationRequests.TryAdd(orderId, error);
+        }
 
         internal async Task RequestNextValidOrderID()
         {
@@ -849,14 +861,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<bool> CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
+        public async Task<GenericActionResult> CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
         {
-            await Task.CompletedTask;
-
             if (!ibClient.IsConnected())
             {
-                logger.Error("Cannot cancel order as the IB client is not connected");
-                return false;
+                string err = "Cannot cancel order as the IB client is not connected";
+                logger.Error(err);
+                return new GenericActionResult(false, err);
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
@@ -865,15 +876,47 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             if (ct.IsCancellationRequested)
             {
-                logger.Error("Not cancelling order: operation cancelled");
-                return false;
+                string err = "Not cancelling order: operation cancelled";
+                logger.Error(err);
+                return new GenericActionResult(false, err);
             }
 
             logger.Warn($"Cancelling order {orderId}");
 
             ordersToCancelQueue.Enqueue(orderId);
 
-            return true;
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        if (IsConfirmedCancelled(orderId, ct))
+                            return new GenericActionResult(true, $"Order {orderId} is confirmed cancelled");
+
+                        string cancelFailedError;
+
+                        if (failedOrderCancellationRequests.TryRemove(orderId, out cancelFailedError))
+                            return new GenericActionResult(false, cancelFailedError);
+
+                        Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    string err = $"Failed to cancel order {orderId}: operation cancelled";
+                    logger.Error(err);
+                    return new GenericActionResult(false, err);
+                }
+                catch (Exception ex)
+                {
+                    string err = $"Failed to cancel order {orderId}";
+                    logger.Error(err, ex);
+                    return new GenericActionResult(false, $"{err}: {ex.Message}");
+                }
+            });
         }
 
         private OrderStatusCode? RefreshOrderStatus(int orderId, CancellationToken ct = default(CancellationToken))
@@ -906,7 +949,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return status == ApiCanceled || status == Cancelled;
         }
 
-        public async Task<bool> CancelAllOrders(IEnumerable<Cross> crosses, CancellationToken ct = default(CancellationToken))
+        public async Task<GenericActionResult> CancelAllOrders(IEnumerable<Cross> crosses, CancellationToken ct = default(CancellationToken))
         {
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
@@ -914,8 +957,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             if (ct.IsCancellationRequested)
             {
-                logger.Error("Not requesting cancel of active orders: operation cancelled");
-                return false;
+                string err = "Not requesting cancel of active orders: operation cancelled";
+                logger.Error(err);
+                return new GenericActionResult(false, err);
             }
 
             // Refresh the list of orders
@@ -934,14 +978,28 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Warn($"Requesting cancel of all active {string.Join(", ", crosses)} orders on IB: orders {string.Join(", ", ordersToCancel)}");
 
+                Dictionary<int, string> failedCancels = new Dictionary<int, string>();
+
                 foreach (int orderId in ordersToCancel)
                 {
-                    await CancelOrder(orderId);
+                    var result = await CancelOrder(orderId);
+
+                    if (!result.Success)
+                    {
+                        logger.Error($"Failed to cancel order {orderId}: {result.Message}");
+                        failedCancels.Add(orderId, result.Message);
+                    }
+
                     await Task.Delay(TimeSpan.FromSeconds(2));
                 }
+
+                if (failedCancels.IsNullOrEmpty())
+                    return new GenericActionResult(true, $"Successfully cancelled orders {string.Join(", ", ordersToCancel)}");
+                else
+                    return new GenericActionResult(false, $"Failed to cancel some orders: {string.Join(", ", failedCancels.Select(kvp => $"{kvp.Key} ({kvp.Value})"))}");
             }
 
-            return true;
+            return new GenericActionResult(true, "Found no active order to cancel");
         }
 
         public async Task<Dictionary<Cross, double?>> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
@@ -1031,7 +1089,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<Order> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
+        public async Task<GenericActionResult<Order>> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
         {
             logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
 
@@ -1046,32 +1104,26 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 case LIMIT:
                     // 1. Cancel existing order
-                    if (await CancelOrder(orderId, ct))
+                    var limitCancelResult = await CancelOrder(orderId, ct);
+
+                    if (limitCancelResult.Success)
                     {
                         logger.Info($"Successfully cancelled current order {orderId}. Will place the updated one");
 
                         // 2. Place new order
                         Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
-                    }
-                    else
-                        logger.Error($"Failed to cancel current order {orderId}");
 
-
-                    // 1. Place new order
-                    Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
-
-                    if (newLimitOrder != null)
-                    {
-                        // 2. Cancel original order
-                        if (await CancelOrder(orderId, ct))
-                            logger.Info($"Successfully cancelled order {orderId}");
+                        if (newLimitOrder != null)
+                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", newLimitOrder);
                         else
-                            logger.Error($"Failed to cancel order {orderId}");
+                            return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: failed to placed new order");
                     }
                     else
-                        logger.Error($"Failed to place new limit order. Not cancelling {orderId}");
-
-                    return newLimitOrder;
+                    {
+                        string limitErr = $"Failed to cancel current order {orderId}: {limitCancelResult.Message}";
+                        logger.Error(limitErr);
+                        return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {limitErr}");
+                    }
                 case STOP:
                     // 1. Place new order
                     Order newStopOrder = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
@@ -1079,18 +1131,44 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (newStopOrder != null)
                     {
                         // 2. Cancel original order
-                        if (await CancelOrder(orderId, ct))
+                        var stopCancelResult = await CancelOrder(orderId, ct);
+
+                        if (stopCancelResult.Success)
+                        {
                             logger.Info($"Successfully cancelled order {orderId}");
+                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", newStopOrder);
+                        }
                         else
-                            logger.Error($"Failed to cancel order {orderId}");
+                        {
+                            logger.Error($"Failed to cancel current order {orderId}. Requesting to cancel the new order just placed");
+
+                            var newStopCancelResult = await CancelOrder(newStopOrder.OrderID);
+
+                            if (newStopCancelResult.Success)
+                            {
+                                logger.Info($"New order {newStopOrder.OrderID} was cancelled successfully");
+                                return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: new order was placed but failed to cancel current order. New order was subsequently cancelled properly");
+                            }
+                            else
+                            {
+                                string stopCancelErr = $"Failed to update level of order {orderId} to {newLevel}: new order was placed but failed to cancel current order. Subsequently failed to cancel the new order: {newStopCancelResult.Message}. POTENTIALLY 2 ACTIVE STOP ORDERS !!";
+
+                                SendFatal($"Failed to update level of order {orderId} to {newLevel}", stopCancelErr);
+
+                                return new GenericActionResult<Order>(false, stopCancelErr);
+                            }
+                        }
                     }
                     else
-                        logger.Error($"Failed to place new stop order. Not cancelling {orderId}");
-
-                    return newStopOrder;
+                    {
+                        string stopErr = $"Failed to place new stop order. Not cancelling current order {orderId}";
+                        logger.Error(stopErr);
+                        return new GenericActionResult<Order>(false, stopErr);
+                    }
                 default:
-                    logger.Error($"Updating the level of orders of type {currentOrder.Type} is not supported");
-                    return null;
+                    string err = $"Updating the level of orders of type {currentOrder.Type} is not supported";
+                    logger.Error(err);
+                    return new GenericActionResult<Order>(false, err);
             }
         }
 
