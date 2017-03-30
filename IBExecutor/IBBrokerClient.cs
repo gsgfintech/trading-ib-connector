@@ -174,7 +174,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             break;
                         case 201:
                             subject = $"Order {error.RequestID} was rejected";
-                            body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
                             break;
                         case 202:
                             subject = $"Order {error.RequestID} was cancelled";

@@ -53,9 +53,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private object ordersToPlaceQueueLocker = new object();
         private List<int> ordersPlaced = new List<int>();
         private ConcurrentQueue<int> ordersToCancelQueue = new ConcurrentQueue<int>();
-        private List<int> ordersCancelled = new List<int>();
+        private ConcurrentDictionary<int, DateTimeOffset> ordersCancelled = new ConcurrentDictionary<int, DateTimeOffset>();
         private ConcurrentDictionary<int, DateTimeOffset> ordersAwaitingPlaceConfirmation = new ConcurrentDictionary<int, DateTimeOffset>();
         private Timer ordersAwaitingPlaceConfirmationTimer = null;
+
+        private ConcurrentDictionary<int, DateTimeOffset> ordersAwaitingCancellationConfirmation = new ConcurrentDictionary<int, DateTimeOffset>();
 
         private ConcurrentDictionary<int, string> failedOrderCancellationRequests = new ConcurrentDictionary<int, string>();
 
@@ -381,6 +383,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             OrderUpdated?.Invoke(order);
         }
 
+        private void HandleOrderCancellation(int orderId)
+        {
+            // 1. Add it to orders cancelled list
+            ordersCancelled.AddOrUpdate(orderId, DateTimeOffset.Now, (key, oldValue) => oldValue);
+
+            // 2. Remove it from orders awaiting cancellation dictionary
+            DateTimeOffset discarded;
+            ordersAwaitingCancellationConfirmation.TryRemove(orderId, out discarded);
+        }
+
         internal void StopTradingStrategyForOrder(int orderId, string message)
         {
             Order order;
@@ -500,13 +512,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             int orderId;
                             if (ordersToCancelQueue.TryDequeue(out orderId))
                             {
-                                if (!ordersCancelled.Contains(orderId))
+                                if (!ordersCancelled.ContainsKey(orderId))
                                 {
                                     logger.Debug($"OrdersCancellingQueue loop: dequeuing {orderId}");
 
                                     ibClient.RequestManager.OrdersRequestManager.RequestCancelOrder(orderId);
 
-                                    ordersCancelled.Add(orderId);
+                                    ordersAwaitingCancellationConfirmation.AddOrUpdate(orderId, DateTimeOffset.Now, (key, oldValue) => oldValue);
 
                                     Task.Delay(TimeSpan.FromSeconds(1)).Wait();
                                 }
@@ -519,7 +531,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         if (loopCounter++ % 10 == 0)
                             logger.Debug($"OrdersCancellingQueue loop: {loopCounter}");
 
-                        Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+                        Task.Delay(TimeSpan.FromSeconds(0.5)).Wait();
                     }
                 }
                 catch (OperationCanceledException)
@@ -863,6 +875,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<GenericActionResult> CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
         {
+            if (IsConfirmedCancelled(orderId))
+            {
+
+            }
+
             if (!ibClient.IsConnected())
             {
                 string err = "Cannot cancel order as the IB client is not connected";
@@ -919,34 +936,24 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             });
         }
 
-        private OrderStatusCode? RefreshOrderStatus(int orderId, CancellationToken ct = default(CancellationToken))
+        private (bool, DateTimeOffset) IsConfirmedCancelled(int orderId, CancellationToken ct = default(CancellationToken))
         {
-            try
-            {
-                // Refresh the list of orders
-                RequestOpenOrders();
+            DateTimeOffset cancellationTimestamp;
 
-                Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+            // 1. Check if that order is already in the cancelled list
+            if (ordersCancelled.TryGetValue(orderId, out cancellationTimestamp))
+                return (true, cancellationTimestamp);
 
-                Order order;
-                if (orders.TryGetValue(orderId, out order))
-                    return order.Status;
-                else
-                    logger.Error($"Unable to find order {orderId} in the list of orders");
-            }
-            catch (Exception ex)
-            {
-                logger.Error($"Failed to check status of order {orderId}", ex);
-            }
+            // 2. Try to force a refresh
+            RequestOpenOrders();
 
-            return null;
-        }
+            Task.Delay(TimeSpan.FromSeconds(1)).Wait();
 
-        private bool IsConfirmedCancelled(int orderId, CancellationToken ct = default(CancellationToken))
-        {
-            var status = RefreshOrderStatus(orderId, ct);
-
-            return status == ApiCanceled || status == Cancelled;
+            // 3. And check again if that order is already in the cancelled list
+            if (ordersCancelled.TryGetValue(orderId, out cancellationTimestamp))
+                return (true, cancellationTimestamp);
+            else
+                return (false, DateTimeOffset.MinValue);
         }
 
         public async Task<GenericActionResult> CancelAllOrders(IEnumerable<Cross> crosses, CancellationToken ct = default(CancellationToken))
