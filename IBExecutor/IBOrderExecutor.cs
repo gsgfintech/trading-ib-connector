@@ -206,9 +206,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 foreach (var kvp in toCheck)
                 {
-                    if (DateTimeOffset.Now.Subtract(kvp.Value) > TimeSpan.FromSeconds(30))
+                    if (DateTimeOffset.Now.Subtract(kvp.Value) > TimeSpan.FromMinutes(3))
                     {
-                        string err = $"Order {kvp.Key} has been awaiting confirmation for more than 30 seconds ({kvp.Value}). Requesting to cancel it and mark it as such";
+                        string err = $"Order {kvp.Key} has been awaiting confirmation for more than 3 minutes ({kvp.Value}). Requesting to cancel it and mark it as such";
                         logger.Error(err);
 
                         DateTimeOffset discarded;
@@ -219,7 +219,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                             int tries = 0;
 
-                            while (!IsConfirmedCancelled(kvp.Key) && tries < 5)
+                            while (!IsConfirmedCancelled(kvp.Key).Item1 && tries < 5)
                             {
                                 tries++;
 
@@ -875,9 +875,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<GenericActionResult> CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
         {
-            if (IsConfirmedCancelled(orderId))
+            var confirmedCancelled = IsConfirmedCancelled(orderId);
+            if (confirmedCancelled.Item1)
             {
-
+                string msg = $"Order {orderId} was already confirmed cancelled at {confirmedCancelled.Item2}";
+                logger.Info(msg);
+                return new GenericActionResult(true, msg);
             }
 
             if (!ibClient.IsConnected())
@@ -910,8 +913,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     {
                         ct.ThrowIfCancellationRequested();
 
-                        if (IsConfirmedCancelled(orderId, ct))
-                            return new GenericActionResult(true, $"Order {orderId} is confirmed cancelled");
+                        confirmedCancelled = IsConfirmedCancelled(orderId);
+                        if (confirmedCancelled.Item1)
+                            return new GenericActionResult(true, $"Order {orderId} was confirmed cancelled at {confirmedCancelled.Item2}");
 
                         string cancelFailedError;
 
