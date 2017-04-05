@@ -324,9 +324,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             RemoveOrderFromAwaitingConfirmationList(orderId);
 
-            //IB will usually not send an update PreSubmitted => Submitted
-            if (status == PreSubmitted)
+            if (status == PreSubmitted) // IB will usually not send an update PreSubmitted => Submitted
                 status = Submitted;
+            else if (status == ApiCanceled || status == Cancelled)
+                HandleOrderCancellation(orderId);
 
             // 3. Add or update the order for tracking
             Order order = orders.AddOrUpdate(orderId, (id) =>
@@ -390,7 +391,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             // 2. Remove it from orders awaiting cancellation dictionary
             DateTimeOffset discarded;
-            ordersAwaitingCancellationConfirmation.TryRemove(orderId, out discarded);
+            if (ordersAwaitingCancellationConfirmation.TryRemove(orderId, out discarded))
+                logger.Info($"Removed order {orderId} from {nameof(ordersAwaitingCancellationConfirmation)} list");
+            else
+                logger.Error($"Failed to remove order {orderId} from {nameof(ordersAwaitingCancellationConfirmation)} list");
         }
 
         internal void StopTradingStrategyForOrder(int orderId, string message)
