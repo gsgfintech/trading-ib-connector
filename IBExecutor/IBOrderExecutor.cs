@@ -70,6 +70,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             failedOrderCancellationRequests.TryAdd(orderId, error);
         }
 
+        internal void NotifyOrderCancelled(int orderId)
+        {
+            logger.Info($"Received cancellation notification for order {orderId}");
+            HandleOrderCancellation(orderId);
+        }
+
         internal async Task RequestNextValidOrderID()
         {
             CancellationTokenSource internalCts = new CancellationTokenSource();

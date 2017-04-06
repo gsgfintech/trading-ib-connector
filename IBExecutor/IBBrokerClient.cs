@@ -199,8 +199,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             break;
                         case 10147:
                             subject = $"Order {error.RequestID} to cancel is invalid";
-                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}";
-                            orderExecutor.NotifyOrderCancelRequestFailed(error.RequestID, body);
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}. Will mark it as cancelled in our systems";
+                            orderExecutor.NotifyOrderCancelled(error.RequestID);
                             break;
                         case 10148:
                             subject = $"Order {error.RequestID} cannot be cancelled";
