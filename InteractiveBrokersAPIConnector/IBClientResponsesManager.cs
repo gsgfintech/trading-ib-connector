@@ -2,6 +2,7 @@
 using IBApi;
 using log4net;
 using System;
+using System.IO;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
@@ -17,6 +18,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 
         public event Action ConnectionOpened;
         public event Action ConnectionClosed;
+        public event Action ConnectionLost;
 
         /// <summary>
         /// Callback signifying completion of successful connection
@@ -66,7 +68,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="e">The exception that occurred</param>
         public void error(Exception e)
         {
-            ErrorMessageReceived?.Invoke(new APIError(-1, -1, e.Message, e));
+            if (e is EndOfStreamException)
+            {
+                logger.Error($"Detected an EndOfStreamException. This suggests that the client is no longer connected to TWS: {e.Message}");
+                ConnectionLost?.Invoke();
+            }
+            else
+                ErrorMessageReceived?.Invoke(new APIError(-1, -1, e.Message, e));
         }
 
         public void verifyCompleted(bool isSuccessful, string errorText)

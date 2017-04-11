@@ -37,7 +37,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         public void RequestPlaceOrder(int orderID, Contract contract, Order order)
         {
             IBApi.Order ibOrder = order.ToIBOrder();
-            ClientSocket.placeOrder(orderID, contract.ToIBContract(), ibOrder);
+            ClientSocket?.placeOrder(orderID, contract.ToIBContract(), ibOrder);
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="orderID">The order ID that was specified previously in PlaceOrder()</param>
         public void RequestCancelOrder(int orderID)
         {
-            ClientSocket.cancelOrder(orderID);
+            ClientSocket?.cancelOrder(orderID);
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         public void RequestOpenOrdersFromThisClient()
         {
-            ClientSocket.reqOpenOrders();
+            ClientSocket?.reqOpenOrders();
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         public void RequestAllOpenOrders()
         {
-            ClientSocket.reqAllOpenOrders();
+            ClientSocket?.reqAllOpenOrders();
         }
 
         /// <summary>
@@ -74,7 +74,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="autoBindNewTWSOrdersToThisClient">If set to TRUE, newly created TWS orders will be implicitly associated with the client. If set to FALSE, no association will be made</param>
         public void RequestOpenOrdersFromTWS(bool autoBindNewTWSOrdersToThisClient = false)
         {
-            ClientSocket.reqAutoOpenOrders(autoBindNewTWSOrdersToThisClient);
+            ClientSocket?.reqAutoOpenOrders(autoBindNewTWSOrdersToThisClient);
         }
 
         //public async Task<int> GetNextValidOrderID(CancellationToken ct)
@@ -88,7 +88,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 
                 _responseManager.NextValidIDReceived += ResponseManager_NextValidIDReceived;
 
-                ClientSocket.reqIds(1); // set to 1 as per IB's documentation
+                ClientSocket?.reqIds(1); // set to 1 as per IB's documentation
 
                 waitingForNextValidOrderId.WaitOne(TimeSpan.FromSeconds(2.5));
 
@@ -109,7 +109,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 
             //_responseManager.NextValidIDReceived += ResponseManager_NextValidIDReceived;
 
-            //ClientSocket.reqIds(1); // set to 1 as per IB's documentation
+            //ClientSocket?.reqIds(1); // set to 1 as per IB's documentation
 
             //return await Task.Run(() =>
             //{
@@ -164,7 +164,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         public void RequestGlobalCancel()
         {
-            ClientSocket.reqGlobalCancel();
+            ClientSocket?.reqGlobalCancel();
         }
     }
 }

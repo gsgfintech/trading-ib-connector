@@ -23,6 +23,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public FundamentalDataRequestManager FundamentalDataRequestManager { get; private set; }
         public DisplayGroupsRequestManager DisplayGroupsRequestManager { get; private set; }
 
+        private bool isLocallyConnected;
         private readonly EReaderMonitorSignal signal = new EReaderMonitorSignal();
 
         public IBClientRequestsManager(IBClientResponsesManager responseManager = null)
@@ -31,6 +32,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
                 ResponseManager = new IBClientResponsesManager();
             else
                 ResponseManager = responseManager;
+
+            ResponseManager.ConnectionClosed += () =>
+            {
+                isLocallyConnected = false;
+            };
+            ResponseManager.ConnectionLost += () =>
+            {
+                isLocallyConnected = false;
+            };
 
             ClientSocket = new EClientSocket(ResponseManager, signal);
 
@@ -64,13 +74,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// All orders placed/modified from this client will be associated with this client identifier</param>
         public void Connect(int clientID, string host = "", int port = 4001)
         {
+            ClientSocket.eDisconnect(); // This is necessary otherwise the TWS API thinks it is still connected and refuses to connect again
             ClientSocket.eConnect(host, port, clientID);
+            isLocallyConnected = true;
 
             var reader = new EReader(ClientSocket, signal);
 
             reader.Start();
 
-            new Thread(() => { while (ClientSocket.IsConnected()) { signal.waitForSignal(); reader.processMsgs(); } }) { IsBackground = true }.Start();
+            new Thread(() => { while (IsConnected()) { signal.waitForSignal(); reader.processMsgs(); } }) { IsBackground = true }.Start();
         }
 
         /// <summary>
@@ -78,6 +90,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// </summary>
         public void Disconnect()
         {
+            isLocallyConnected = false;
             ClientSocket.eDisconnect();
         }
 
@@ -87,7 +100,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <returns>The connection status</returns>
         public bool IsConnected()
         {
-            return ClientSocket.IsConnected();
+            return isLocallyConnected && ClientSocket.IsConnected();
         }
 
         /// <summary>

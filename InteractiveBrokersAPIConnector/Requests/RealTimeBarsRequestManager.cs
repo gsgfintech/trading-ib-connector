@@ -22,7 +22,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="getRegularTradingHoursDataOnly">Determines whether to return all data available during the requested time span, or only data that falls within regular trading hours</param>
         public void RequestRealTimeBars(int requestID, Contract contract, string rtBarDataType, bool getRegularTradingHoursDataOnly)
         {
-            ClientSocket.reqRealTimeBars(requestID, contract.ToIBContract(), 0, rtBarDataType, getRegularTradingHoursDataOnly, null);
+            ClientSocket?.reqRealTimeBars(requestID, contract.ToIBContract(), 0, rtBarDataType, getRegularTradingHoursDataOnly, null);
         }
 
         /// <summary>
@@ -31,7 +31,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="requestID">The ID that was specified</param>
         public void CancelRealTimeBarsRequest(int requestID)
         {
-            ClientSocket.cancelRealTimeBars(requestID);
+            ClientSocket?.cancelRealTimeBars(requestID);
         }
     }
 }

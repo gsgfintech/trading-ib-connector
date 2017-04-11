@@ -148,7 +148,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 
         public bool IsConnected()
         {
-            return RequestManager.ClientSocket.IsConnected();
+            return RequestManager.IsConnected();
         }
 
         private void ResponseManager_ErrorMessageReceived(APIError apiError)

@@ -24,7 +24,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         public void SubscribeToAccountUpdates(string accountCode)
         {
             // If set to TRUE, the client will start receiving account and portfolio updates. If set to FALSE, the client will stop receiving this information
-            ClientSocket.reqAccountUpdates(true, accountCode);
+            ClientSocket?.reqAccountUpdates(true, accountCode);
         }
 
         /// <summary>
@@ -37,7 +37,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         public void UnsubscribeFromAccountUpdates(string accountCode)
         {
             // If set to TRUE, the client will start receiving account and portfolio updates. If set to FALSE, the client will stop receiving this information
-            ClientSocket.reqAccountUpdates(false, accountCode);
+            ClientSocket?.reqAccountUpdates(false, accountCode);
         }
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 
             accountTagsStr = accountTags?.Aggregate<string, string>(String.Empty, (cur, next) => { return $"{cur},{next}"; });
 
-            ClientSocket.reqAccountSummary(requestID, group, accountTagsStr);
+            ClientSocket?.reqAccountSummary(requestID, group, accountTagsStr);
         }
 
         /// <summary>
@@ -62,7 +62,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="requestID">The ID of the data request being cancelled</param>
         public void CancelAccountSummaryRequest(int requestID)
         {
-            ClientSocket.cancelAccountSummary(requestID);
+            ClientSocket?.cancelAccountSummary(requestID);
         }
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         public void RequestAllPositions()
         {
-            ClientSocket.reqPositions();
+            ClientSocket?.reqPositions();
         }
 
         /// <summary>
@@ -79,7 +79,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         public void CancelRealTimePositionUpdates()
         {
-            ClientSocket.cancelPositions();
+            ClientSocket?.cancelPositions();
         }
     }
 }

@@ -17,7 +17,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="alsoReturnPastMessages">If set to TRUE, returns all the existing bulletins for the current day and any new ones. IF set to FALSE, will only return new bulletins</param>
         public void RequestNewsBulletins(bool alsoReturnPastMessages)
         {
-            ClientSocket.reqNewsBulletins(alsoReturnPastMessages);
+            ClientSocket?.reqNewsBulletins(alsoReturnPastMessages);
         }
 
         /// <summary>
@@ -25,7 +25,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         public void CancelNewsBulletinsRequests()
         {
-            ClientSocket.cancelNewsBulletin();
+            ClientSocket?.cancelNewsBulletin();
         }
     }
 }
