@@ -63,6 +63,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.ibClient.IBConnectionLost += () =>
             {
+                logger.Error("IB client disconnected from TWS. Send out a notification that market and historical data are disconnected");
+
+                HandleHistoricalDataDisconnection();
+                HandleMarketDataDisconnection();
+
                 logger.Error("IB client disconnected from TWS. Clearing current RT bars cache, if any");
 
                 currentRtBars.Clear();

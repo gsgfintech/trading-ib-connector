@@ -33,10 +33,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             else
                 ResponseManager = responseManager;
 
-            ResponseManager.ConnectionClosed += () =>
-            {
-                isLocallyConnected = false;
-            };
             ResponseManager.ConnectionLost += () =>
             {
                 isLocallyConnected = false;
