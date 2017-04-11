@@ -1,4 +1,5 @@
-﻿using System;
+﻿using IBApi;
+using System;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
@@ -44,6 +45,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public void updateMktDepthL2(int tickerId, int position, string marketMaker, int operation, int side, double price, int size)
         {
             OrderBookLevel2UpdateReceived?.Invoke(tickerId, position, marketMaker, operation, side, price, size);
+        }
+
+        /// <summary>
+        /// Called when receives Depth Market Data Descriptions. In response to EClient::reqMktDepthExchanges
+        /// </summary>
+        /// <param name="depthMktDataDescriptions">Stores a list of DepthMktDataDescriprion</param>
+        public void mktDepthExchanges(DepthMktDataDescription[] depthMktDataDescriptions)
+        {
+            // TODO
         }
     }
 }

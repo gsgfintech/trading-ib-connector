@@ -124,7 +124,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //    }
                 //}, null, 1000, 1000);
 
-                //await SubscribeAndListenRTBars(brokerClient);
+                await SubscribeAndListenRTBars(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
@@ -140,10 +140,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 //await TestPlaceAndCancel(brokerClient.OrderExecutor);
                 //await TestPlaceAndUpdateLimit(brokerClient.OrderExecutor);
-                await TestPlaceAndUpdateStop(brokerClient.OrderExecutor);
+                //await TestPlaceAndUpdateStop(brokerClient.OrderExecutor);
 
                 logger.Debug("Sleeping for 10 seconds");
-                Task.Delay(TimeSpan.FromSeconds(10)).Wait();
+                Task.Delay(TimeSpan.FromSeconds(60)).Wait();
 
                 //await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
 

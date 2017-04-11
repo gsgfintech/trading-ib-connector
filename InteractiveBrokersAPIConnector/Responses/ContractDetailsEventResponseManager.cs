@@ -38,5 +38,34 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         {
             ContractDetailsRequestEnded?.Invoke(reqId);
         }
+
+        /// <summary>
+        /// Returns beginning of data for contract for specified data type. In response to EClient::reqHeadTimestamp
+        /// </summary>
+        /// <param name="reqId"></param>
+        /// <param name="headTimestamp">string identifying earliest data date</param>
+        public void headTimestamp(int reqId, string headTimestamp)
+        {
+            // TODO
+        }
+
+        /// <summary>
+        /// Returns array of sample contract descriptions. In response to EClient::reqMatchingSymbols
+        /// </summary>
+        /// <param name="reqId"></param>
+        /// <param name="contractDescriptions"></param>
+        public void symbolSamples(int reqId, IBApi.ContractDescription[] contractDescriptions)
+        {
+            // TODO
+        }
+
+        /// <summary>
+        /// Returns array of family codes. In response to EClient::reqFamilyCodes
+        /// </summary>
+        /// <param name="familyCodes"></param>
+        public void familyCodes(IBApi.FamilyCode[] familyCodes)
+        {
+            // TODO
+        }
     }
 }

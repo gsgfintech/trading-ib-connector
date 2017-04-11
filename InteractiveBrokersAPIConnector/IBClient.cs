@@ -61,7 +61,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             ResponseManager.ErrorMessageReceived += ResponseManager_ErrorMessageReceived;
 
             logger.Info($"Attempting first connection of {ToString()}");
-            Task<bool> initialConnectTask = Task.Run<bool>(() =>
+            Task<bool> initialConnectTask = Task.Run(() =>
             {
                 return Connect(stopRequestedCt);
             });
@@ -86,7 +86,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
                         }
 
                         // 2. Attempt to reconnect
-                        Task<bool> connectTask = Task.Run<bool>(() =>
+                        Task<bool> connectTask = Task.Run(() =>
                         {
                             return Connect(stopRequestedCt);
                         });

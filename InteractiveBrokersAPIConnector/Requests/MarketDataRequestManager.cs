@@ -25,20 +25,36 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// </summary>
         /// <param name="requestID">The request ID. Must be a unique value. When the market data returns, it will be identified by this tag. This is also used when canceling the market data</param>
         /// <param name="contract">This class contains attributes used to describe the contract</param>
-        /// <param name="genericTicksList">An enumerable of generic tick types</param>
+        /// <param name="genericTicksList">An enumerable of generic tick types
+        ///      - 100 	Option Volume (currently for stocks)
+        ///      - 101 	Option Open Interest (currently for stocks) 
+        ///      - 104 	Historical Volatility (currently for stocks)
+        ///      - 106 	Option Implied Volatility (currently for stocks)
+        ///      - 162 	Index Future Premium 
+        ///      - 165 	Miscellaneous Stats 
+        ///      - 221 	Mark Price (used in TWS P&L computations) 
+        ///      - 225 	Auction values (volume, price and imbalance) 
+        ///      - 233 	RTVolume - contains the last trade price, last trade size, last trade time, total volume, VWAP, and single trade flag.
+        ///      - 236 	Shortable
+        ///      - 256 	Inventory 	 
+        ///      - 258 	Fundamental Ratios 
+        ///      - 411 	Realtime Historical Volatility 
+        ///      - 456 	IBDividends
+        /// </param>
         /// <param name="isSnapshot">When set to True, returns a single snapshot of market data. 
         /// When set to False, returns continues updates. Do not enter any genericTicklist values if you use snapshot</param>
         public void RequestMarketData(int requestID, Contract contract, IEnumerable<GenericTickType> genericTicksList = null, bool isSnapshot = false)
         {
-            try {
+            try
+            {
                 string genericTicksListStr = String.Empty;
 
                 if (!genericTicksList.IsNullOrEmpty() && !isSnapshot)
-                    genericTicksListStr = genericTicksList.Aggregate<GenericTickType, string>(String.Empty, (cur, next) => { return $"{cur},{next.ID}"; });
+                    genericTicksListStr = genericTicksList.Aggregate(String.Empty, (cur, next) => { return $"{cur},{next.ID}"; });
 
-                ClientSocket.reqMktData(requestID, contract.ToIBContract(), genericTicksListStr, isSnapshot, null);
+                ClientSocket.reqMktData(requestID, contract.ToIBContract(), genericTicksListStr, isSnapshot, false, null);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 logger.Error("Failed to subscribe to market data", ex);
             }

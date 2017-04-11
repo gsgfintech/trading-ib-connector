@@ -1,5 +1,7 @@
 ﻿using Capital.GSG.FX.Data.Core.MarketData;
+using IBApi;
 using System;
+using System.Collections.Generic;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
@@ -69,9 +71,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="field">Specifies the type of price. Pass the field value into TickType.getField(int tickType) to retrieve the field description</param>
         /// <param name="price">The actual price</param>
         /// <param name="canAutoExecute">Specifies whether the price tick is available for automatic execution</param>
-        public void tickPrice(int tickerId, int field, double price, int canAutoExecute)
+        public void tickPrice(int tickerId, int field, double price, TickAttrib attribs)
         {
-            MarketDataPriceTickReceived?.Invoke(tickerId, (MarketDataTickType)field, price, (canAutoExecute == 1));
+            MarketDataPriceTickReceived?.Invoke(tickerId, (MarketDataTickType)field, price, (attribs?.CanAutoExecute == true));
         }
 
         /// <summary>
@@ -115,6 +117,28 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public void marketDataType(int reqId, int marketDataType)
         {
             MarketDataTypeReceived?.Invoke(reqId, marketDataType);
+        }
+
+        /// <summary>
+        /// Tick with BOO exchange and snapshot permissions. In response to EClient::reqMktData
+        /// </summary>
+        /// <param name="tickerId"></param>
+        /// <param name="minTick"></param>
+        /// <param name="bboExchange"></param>
+        /// <param name="snapshotPermissions"></param>
+        public void tickReqParams(int tickerId, double minTick, string bboExchange, int snapshotPermissions)
+        {
+            // TODO
+        }
+
+        /// <summary>
+        /// Bit number to exchange + exchange apprevation dictionary. In response to EClient::reqSmartComponents
+        /// </summary>
+        /// <param name="reqId"></param>
+        /// <param name="theMap"></param>
+        public void smartComponents(int reqId, Dictionary<int, KeyValuePair<string, char>> theMap)
+        {
+            // TODO
         }
     }
 }

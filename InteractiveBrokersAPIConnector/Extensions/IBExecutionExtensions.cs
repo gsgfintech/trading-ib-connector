@@ -28,8 +28,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                     ClientOrderRef = ibExecution.OrderRef
                 };
 
-                DateTime executionTime;
-                if (DateTime.TryParseExact(ibExecution.Time, "yyyyMMdd  HH:mm:ss", new CultureInfo("en-US"), DateTimeStyles.AssumeLocal, out executionTime))
+                DateTimeOffset executionTime;
+                if (DateTimeOffset.TryParseExact(ibExecution.Time, "yyyyMMdd  HH:mm:ss", new CultureInfo("en-US"), DateTimeStyles.AssumeLocal, out executionTime))
                     apiExecution.ExecutionTime = executionTime;
 
                 if (ibExecution.Side == "BOT")

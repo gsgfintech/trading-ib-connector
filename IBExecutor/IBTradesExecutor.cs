@@ -26,7 +26,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public List<Execution> Trades { get; } = new List<Execution>();
 
         private ConcurrentDictionary<string, TempExecution> tmpExecutions = new ConcurrentDictionary<string, TempExecution>();
-        private ConcurrentDictionary<int, int> partialExecutions = new ConcurrentDictionary<int, int>();
+        private ConcurrentDictionary<int, double> partialExecutions = new ConcurrentDictionary<int, double>();
 
         public event Action<Execution> TradeReceived;
 
@@ -137,9 +137,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             TempExecution tmpExecution = tmpExecutions.GetOrAdd(execution.Id, new TempExecution() { Execution = execution });
 
-            int newCumulativeQuantity = execution.Quantity;
+            double newCumulativeQuantity = execution.Quantity;
 
-            int previousCumulativeQuantity;
+            double previousCumulativeQuantity;
             if (partialExecutions.TryGetValue(execution.OrderId, out previousCumulativeQuantity))
             {
                 execution.Quantity -= previousCumulativeQuantity; // IB sends execution details with cumulative quantities, which override any quantity previously executed already
