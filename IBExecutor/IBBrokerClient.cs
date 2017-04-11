@@ -142,6 +142,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (IB-{error.ErrorCode})";
                     string body = error.ErrorMessage;
+                    AlertLevel level = error.Level;
+                    bool relayToMonitoring = error.RelayToMonitoringInterface;
 
                     #region Additional action handlers for specific errors
                     switch (error.ErrorCode)
@@ -185,17 +187,41 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 1102:
                             subject = error.ErrorCodeDescription;
                             break;
-                        case 2103:
-                        case 2105:
+                        case 2103: // Market data connection lost
                             subject = error.ErrorCodeDescription;
-                            // Market data connection lost
-                            StartTwsRestartTimer();
+                            if (marketDataProvider?.HandleMarketDataDisconnection() != true)
+                            {
+                                // Downgrade to INFO and do not relay to monitoring
+                                level = AlertLevel.INFO;
+                                relayToMonitoring = false;
+                            }
                             break;
-                        case 2104:
-                        case 2106:
-                            // Market data connection resumed
+                        case 2104: // Market data connection resumed
                             subject = error.ErrorCodeDescription;
-                            TerminateTwsRestartTimer();
+                            if (marketDataProvider?.HandleMarketDataReconnection() != true)
+                            {
+                                // Downgrade to INFO and do not relay to monitoring
+                                level = AlertLevel.INFO;
+                                relayToMonitoring = false;
+                            }
+                            break;
+                        case 2105: // Historical data connection lost
+                            subject = error.ErrorCodeDescription;
+                            if (marketDataProvider?.HandleHistoricalDataDisconnection() != true)
+                            {
+                                // Downgrade to INFO and do not relay to monitoring
+                                level = AlertLevel.INFO;
+                                relayToMonitoring = false;
+                            }
+                            break;
+                        case 2106: // Historical data connection resumed
+                            subject = error.ErrorCodeDescription;
+                            if (marketDataProvider?.HandleHistoricalDataReconnection() != true)
+                            {
+                                // Downgrade to INFO and do not relay to monitoring
+                                level = AlertLevel.INFO;
+                                relayToMonitoring = false;
+                            }
                             break;
                         case 10147:
                             subject = $"Order {error.RequestID} to cancel is invalid";
@@ -211,7 +237,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     }
                     #endregion
 
-                    switch (error.Level)
+                    switch (level)
                     {
                         case AlertLevel.DEBUG:
                             logger.Debug($"{clientName}: {body}");
@@ -232,7 +258,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             break;
                     }
 
-                    if (error.RelayToMonitoringInterface)
+                    if (relayToMonitoring)
                         AlertReceived?.Invoke(new Alert() { Level = error.Level, Source = clientName, Subject = subject, Body = body });
                     else
                         logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");

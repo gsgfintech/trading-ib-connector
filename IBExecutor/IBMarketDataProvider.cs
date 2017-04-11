@@ -30,6 +30,23 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly bool logTicks;
         private readonly CancellationToken stopRequestedCt;
 
+        private ConcurrentDictionary<Cross, bool> currentMdTicksSubscribed = new ConcurrentDictionary<Cross, bool>();
+        private ConcurrentDictionary<Cross, bool> currentRtBarsSubscribed = new ConcurrentDictionary<Cross, bool>();
+
+        private DateTimeOffset lastMarketDataLostCheck = DateTimeOffset.MinValue;
+        private object lastMarketDataLostCheckLocker = new object();
+        private DateTimeOffset lastHistoricalDataLostCheck = DateTimeOffset.MinValue;
+        private object lastHistoricalDataLostCheckLocker = new object();
+        private DateTimeOffset lastMarketDataResumedCheck = DateTimeOffset.MinValue;
+        private object lastMarketDataResumedCheckLocker = new object();
+        private DateTimeOffset lastHistoricalDataResumedCheck = DateTimeOffset.MinValue;
+        private object lastHistoricalDataResumedCheckLocker = new object();
+
+        public event Action MarketDataConnectionLost;
+        public event Action HistoricalDataConnectionLost;
+        public event Action MarketDataConnectionResumed;
+        public event Action HistoricalDataConnectionResumed;
+
         internal IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, IEnumerable<Contract> ibContracts, bool logTicks, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
@@ -437,6 +454,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Subscribing MD ticks for {string.Join(", ", crosses)}");
 
                 SubmitMarketDataRequests(GetRequestIdsForCrossesAndRequestType(crosses, MarketDataRequestType.MarketDataTick, false));
+
+                foreach (var cross in crosses)
+                    currentMdTicksSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
             }
         }
 
@@ -445,6 +465,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Subscribing MD ticks for {cross}");
 
             SubmitMarketDataRequest(GetRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, false));
+
+            currentMdTicksSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
         }
 
         public void SubscribeRTBars(IEnumerable<Cross> crosses)
@@ -454,6 +476,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Subscribing RT bars for {string.Join(", ", crosses)}");
 
                 SubmitMarketDataRequests(GetRequestIdsForCrossesAndRequestTypes(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, false));
+
+                foreach (var cross in crosses)
+                    currentRtBarsSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
             }
         }
 
@@ -462,6 +487,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Subscribing RT bars for {cross}");
 
             SubmitMarketDataRequests(GetRequestIdsForCrossAndRequestTypes(cross, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, false));
+
+            currentRtBarsSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
         }
 
         public void UnsubscribeMDTicks()
@@ -469,6 +496,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Unsubscribing all MD ticks");
 
             CancelMarketDataRequests(GetRequestIdsForRequestType(MarketDataRequestType.MarketDataTick, true));
+
+            currentMdTicksSubscribed.Clear();
         }
 
         public void UnsubscribeMDTicks(IEnumerable<Cross> crosses)
@@ -478,6 +507,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Unsubscribing MD ticks for {string.Join(", ", crosses)}");
 
                 CancelMarketDataRequests(GetRequestIdsForCrossesAndRequestType(crosses, MarketDataRequestType.MarketDataTick, true));
+
+                foreach (var cross in crosses)
+                    currentMdTicksSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
             }
         }
 
@@ -486,6 +518,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Unsubscribing MD ticks for {cross}");
 
             CancelMarketDataRequest(GetRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, true));
+
+            currentMdTicksSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
         }
 
         public void UnsubscribeRTBars()
@@ -493,6 +527,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Unsubscribing all RT bars");
 
             CancelMarketDataRequests(GetRequestIdsForRequestTypes(new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
+
+            currentRtBarsSubscribed.Clear();
         }
 
         public void UnsubscribeRTBars(IEnumerable<Cross> crosses)
@@ -502,6 +538,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Unsubscribing RT bars for {string.Join(", ", crosses)}");
 
                 CancelMarketDataRequests(GetRequestIdsForCrossesAndRequestTypes(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
+
+                foreach (var cross in crosses)
+                    currentRtBarsSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
             }
         }
 
@@ -510,12 +549,109 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Unsubscribing RT bars for {cross}");
 
             CancelMarketDataRequests(GetRequestIdsForCrossAndRequestTypes(cross, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
+
+            currentRtBarsSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
         }
 
         private void UnsubscribeAll()
         {
             logger.Info("Unsubscribing all market data requests");
             CancelMarketDataRequests(marketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key));
+
+            currentMdTicksSubscribed.Clear();
+            currentRtBarsSubscribed.Clear();
+        }
+
+        internal bool HandleHistoricalDataDisconnection()
+        {
+            // Throttle notifications
+            if (DateTimeOffset.Now.Subtract(lastHistoricalDataLostCheck) > TimeSpan.FromSeconds(5))
+            {
+                lock (lastHistoricalDataLostCheckLocker)
+                {
+                    lastHistoricalDataLostCheck = DateTimeOffset.Now;
+                }
+
+                var subscribed = currentRtBarsSubscribed.ToArray();
+
+                bool needToNotify = subscribed.Count(s => s.Value) > 0;
+
+                if (needToNotify)
+                    HistoricalDataConnectionLost?.Invoke();
+
+                return needToNotify;
+            }
+            else
+                return false;
+        }
+
+        internal bool HandleHistoricalDataReconnection()
+        {
+            // Throttle notifications
+            if (DateTimeOffset.Now.Subtract(lastHistoricalDataResumedCheck) > TimeSpan.FromSeconds(5))
+            {
+                lock (lastHistoricalDataResumedCheckLocker)
+                {
+                    lastHistoricalDataResumedCheck = DateTimeOffset.Now;
+                }
+
+                var subscribed = currentRtBarsSubscribed.ToArray();
+
+                bool needToNotify = subscribed.Count(s => s.Value) > 0;
+
+                if (needToNotify)
+                    HistoricalDataConnectionResumed?.Invoke();
+
+                return needToNotify;
+            }
+            else
+                return false;
+        }
+
+        internal bool HandleMarketDataDisconnection()
+        {
+            // Throttle notifications
+            if (DateTimeOffset.Now.Subtract(lastMarketDataLostCheck) > TimeSpan.FromSeconds(5))
+            {
+                lock (lastMarketDataLostCheckLocker)
+                {
+                    lastMarketDataLostCheck = DateTimeOffset.Now;
+                }
+
+                var subscribed = currentMdTicksSubscribed.ToArray();
+
+                bool needToNotify = subscribed.Count(s => s.Value) > 0;
+
+                if (needToNotify)
+                    MarketDataConnectionLost?.Invoke();
+
+                return needToNotify;
+            }
+            else
+                return false;
+        }
+
+        internal bool HandleMarketDataReconnection()
+        {
+            // Throttle notifications
+            if (DateTimeOffset.Now.Subtract(lastMarketDataResumedCheck) > TimeSpan.FromSeconds(5))
+            {
+                lock (lastMarketDataResumedCheckLocker)
+                {
+                    lastMarketDataResumedCheck = DateTimeOffset.Now;
+                }
+
+                var subscribed = currentMdTicksSubscribed.ToArray();
+
+                bool needToNotify = subscribed.Count(s => s.Value) > 0;
+
+                if (needToNotify)
+                    MarketDataConnectionResumed?.Invoke();
+
+                return needToNotify;
+            }
+            else
+                return false;
         }
 
         public void Dispose()
