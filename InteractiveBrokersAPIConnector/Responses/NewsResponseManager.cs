@@ -1,19 +1,13 @@
 ﻿using IBApi;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
     public partial class IBClientResponsesManager
     {
-        /// <summary>
-        /// Returns data histogram. In response to EClient::reqHistogramData
-        /// </summary>
-        /// <param name="reqId"></param>
-        /// <param name="data">Returned Tuple of histogram data, number of trades at specified price level</param>
-        public void histogramData(int reqId, Tuple<double, long>[] data)
-        {
-            // TODO
-        }
+        public event Action<Dictionary<string, string>> NewsProvidersListReceived;
 
         /// <summary>
         /// Returns news headline. In response to EClient::reqHistoricalNews
@@ -55,21 +49,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="newsProviders"></param>
         public void newsProviders(NewsProvider[] newsProviders)
         {
-            // TODO
-        }
-
-        /// <summary>
-        /// Ticks with news headline. In response to EClient::reqMktData
-        /// </summary>
-        /// <param name="tickerId"></param>
-        /// <param name="timeStamp"></param>
-        /// <param name="providerCode"></param>
-        /// <param name="articleId"></param>
-        /// <param name="headline"></param>
-        /// <param name="extraData"></param>
-        public void tickNews(int tickerId, long timeStamp, string providerCode, string articleId, string headline, string extraData)
-        {
-            // TODO
+            if (newsProviders.Length == 0)
+                NewsProvidersListReceived?.Invoke(new Dictionary<string, string>());
+            else
+                NewsProvidersListReceived?.Invoke(newsProviders.ToDictionary(p => p.ProviderName, p => p.ProviderCode));
         }
     }
 }

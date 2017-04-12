@@ -18,18 +18,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         }
 
         /// <summary>
-        /// Returns data histogram of specified contract
-        /// </summary>
-        /// <param name="tickerId">An identifier for the request</param>
-        /// <param name="contract">Contract object for which histogram is being requested</param>
-        /// <param name="useRegularTradingHours">Use regular trading hours only</param>
-        /// <param name="period">Period of which data is being requested, e.g. "3 days"</param>
-        public void RequestHistogramData(int tickerId, Contract contract, bool useRegularTradingHours, string period)
-        {
-            ClientSocket.reqHistogramData(tickerId, contract.ToIBContract(), useRegularTradingHours, period);
-        }
-
-        /// <summary>
         /// Requests historical news headlines (replied with EWrapper::historicalNews, EWrapper::historicalNewsEnd)
         /// </summary>
         /// <param name="requestId">Request ID</param>
@@ -41,6 +29,25 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         public void RequestHistoricalNews(int requestId, int contractId, string providerCodes, DateTimeOffset startDateTime, DateTimeOffset endDateTime, int maxResultsCount)
         {
             ClientSocket.reqHistoricalNews(requestId, contractId, providerCodes, startDateTime.ToString("yyyy-MM-dd HH:mm:ss.0"), endDateTime.ToString("yyyy-MM-dd HH:mm:ss.0"), maxResultsCount);
+        }
+
+        /// <summary>
+        /// Requests news article body given article ID (replied with EWrapper::newsArticle)
+        /// </summary>
+        /// <param name="requestId"></param>
+        /// <param name="providerCode"></param>
+        /// <param name="articleId"></param>
+        public void RequestNewsArticle(int requestId, string providerCode, string articleId)
+        {
+            ClientSocket.reqNewsArticle(requestId, providerCode, articleId);
+        }
+
+        /// <summary>
+        /// Requests news providers which the user has subscribed to (replied with EWrapper::newsProviders)
+        /// </summary>
+        public void RequestNewsProviders()
+        {
+            ClientSocket.reqNewsProviders();
         }
     }
 }

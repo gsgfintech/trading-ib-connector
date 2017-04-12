@@ -18,6 +18,8 @@ using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Data.Core.ExecutionData;
 using Capital.GSG.FX.IBData.Service.Connector;
 using Capital.GSG.FX.Data.Core.SystemData;
+using Capital.GSG.FX.Utils.Core;
+using System.Linq;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -124,7 +126,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //    }
                 //}, null, 1000, 1000);
 
-                await SubscribeAndListenRTBars(brokerClient);
+                //await SubscribeAndListenRTBars(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
@@ -143,7 +145,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await TestPlaceAndUpdateStop(brokerClient.OrderExecutor);
 
                 logger.Debug("Sleeping for 10 seconds");
-                Task.Delay(TimeSpan.FromSeconds(60)).Wait();
+                Task.Delay(TimeSpan.FromSeconds(15)).Wait();
+
+                await TestHistoData(((BrokerClient)brokerClient).HistoricalDataProvider);
+                //TestNews(((BrokerClient)brokerClient).NewsProvider);
 
                 //await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
 
@@ -162,6 +167,35 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Fatal("Caught fatal unhandled exception. The process will now exit", ex);
             }
+        }
+
+        private static async Task TestHistoData(IBHistoricalDataProvider histoDataProvider)
+        {
+            var result = await histoDataProvider.Retrieve5SecondsHistoricalBars(EURUSD, DateTimeOffset.Now.AddMonths(-6));
+
+            if (result.Bars.IsNullOrEmpty())
+                logger.Error("Result is null");
+
+            var bars = result.Bars;
+
+            if (bars.First().Timestamp != result.LowerBound)
+                logger.Error("Expected the timestamp of the first bar to match the lowerBound");
+
+            if (bars.Last().Timestamp != result.UpperBound)
+                logger.Error("Expected the timestamp of the last bar to match the upperBound");
+
+            var incomPleteBars = bars.Count(b => b.Ask == null || b.Mid == null || b.Bid == null);
+
+            if (incomPleteBars > 0)
+                logger.Error($"{incomPleteBars} bars are missing a ask/mid/bid");
+        }
+
+        private static void TestNews(IBNewsProvider newsProvider)
+        {
+            var providers = newsProvider.ListAvailableNewsProviders();
+
+            foreach (var provider in providers)
+                Console.WriteLine($"{provider.Key} ({provider.Value})");
         }
 
         private static async Task TestPlaceAndCancel(IOrderExecutor executor)

@@ -35,8 +35,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly ITradingExecutorRunner tradingExecutorRunner;
         public ITradingExecutorRunner TradingExecutorRunner { get { return tradingExecutorRunner; } }
 
+        private IBHistoricalDataProvider historicalDataProvider;
+        public IBHistoricalDataProvider HistoricalDataProvider { get { return historicalDataProvider; } }
+
         private IBMarketDataProvider marketDataProvider;
         public IMarketDataProvider MarketDataProvider { get { return marketDataProvider; } }
+
+        private IBNewsProvider newsProvider;
+        public IBNewsProvider NewsProvider { get { return newsProvider; } }
 
         private IBNewsBulletinProvider newsBulletinProvider;
         public INewsBulletinProvider NewsBulletinProvider { get { return newsBulletinProvider; } }
@@ -127,7 +133,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Setting up market data provider and news bulletins provider");
 
+                historicalDataProvider = new IBHistoricalDataProvider(ibClient, ibContracts, stopRequestedCt);
                 marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, logTicks, stopRequestedCt);
+                newsProvider = new IBNewsProvider(ibClient, stopRequestedCt);
                 newsBulletinProvider = new IBNewsBulletinProvider(ibClient, stopRequestedCt);
             }
         }

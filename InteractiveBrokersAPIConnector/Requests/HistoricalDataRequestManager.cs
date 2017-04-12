@@ -29,8 +29,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// <param name="barSize">Specifies the size of the bars that will be returned (within IB/TWS limits)</param>
         /// <param name="dataType">Determines the nature of data being extracted</param>
         /// <param name="getRegularTradingHoursDataOnly">Determines whether to return all data available during the requested time span, or only data that falls within regular trading hours</param>
-        public void RequestHistoricalData(int requestID, Contract contract, DateTime endDateTime, int timeSpan, HistoricalDataTimeSpanUnit timeSpanUnit, HistoricalDataBarSize barSize,
-            HistoricalDataDataType dataType, bool getRegularTradingHoursDataOnly)
+        public void RequestHistoricalData(int requestID, Contract contract, DateTimeOffset endDateTime, int timeSpan, HistoricalDataTimeSpanUnit timeSpanUnit, HistoricalDataBarSize barSize,
+            HistoricalDataDataType dataType, bool getRegularTradingHoursDataOnly = false)
         {
             string endDateStr = endDateTime.ToString("yyyyMMdd HH:mm:ss");
             string timeSpanStr = $"{timeSpan} {timeSpanUnit.ToCharCode()}";

@@ -15,6 +15,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         public ExecutionsRequestManager ExecutionsRequestManager { get; private set; }
         public ContractDetailsRequestManager ContractDetailsRequestManager { get; private set; }
         public MarketDepthRequestManager MarketDepthRequestManager { get; private set; }
+        public NewsRequestManager NewsRequestManager { get; private set; }
         public NewsBulletinRequestManager NewsBulletinRequestManager { get; private set; }
         public FinancialAdvisorsRequestManager FinancialAdvisorsRequestManager { get; private set; }
         public MarketScannerRequestManager MarketScannerRequestManager { get; private set; }
@@ -46,6 +47,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
             ExecutionsRequestManager = new ExecutionsRequestManager(this);
             ContractDetailsRequestManager = new ContractDetailsRequestManager(this);
             MarketDepthRequestManager = new MarketDepthRequestManager(this);
+            NewsRequestManager = new NewsRequestManager(this);
             NewsBulletinRequestManager = new NewsBulletinRequestManager(this);
             FinancialAdvisorsRequestManager = new FinancialAdvisorsRequestManager(this);
             MarketScannerRequestManager = new MarketScannerRequestManager(this);

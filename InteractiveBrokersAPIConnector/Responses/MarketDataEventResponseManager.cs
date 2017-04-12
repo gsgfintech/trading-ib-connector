@@ -140,5 +140,29 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         {
             // TODO
         }
+
+        /// <summary>
+        /// Returns data histogram. In response to EClient::reqHistogramData
+        /// </summary>
+        /// <param name="reqId"></param>
+        /// <param name="data">Returned Tuple of histogram data, number of trades at specified price level</param>
+        public void histogramData(int reqId, Tuple<double, long>[] data)
+        {
+            // TODO
+        }
+
+        /// <summary>
+        /// Ticks with news headline. In response to EClient::reqMktData
+        /// </summary>
+        /// <param name="tickerId"></param>
+        /// <param name="timeStamp"></param>
+        /// <param name="providerCode"></param>
+        /// <param name="articleId"></param>
+        /// <param name="headline"></param>
+        /// <param name="extraData"></param>
+        public void tickNews(int tickerId, long timeStamp, string providerCode, string articleId, string headline, string extraData)
+        {
+            // TODO
+        }
     }
 }

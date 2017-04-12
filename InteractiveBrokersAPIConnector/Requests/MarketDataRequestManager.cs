@@ -121,5 +121,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         {
             ClientSocket.reqMarketDataType((int)marketDataType);
         }
+
+        /// <summary>
+        /// Returns data histogram of specified contract
+        /// </summary>
+        /// <param name="tickerId">An identifier for the request</param>
+        /// <param name="contract">Contract object for which histogram is being requested</param>
+        /// <param name="useRegularTradingHours">Use regular trading hours only</param>
+        /// <param name="period">Period of which data is being requested, e.g. "3 days"</param>
+        public void RequestHistogramData(int tickerId, Contract contract, bool useRegularTradingHours, string period)
+        {
+            ClientSocket.reqHistogramData(tickerId, contract.ToIBContract(), useRegularTradingHours, period);
+        }
     }
 }
