@@ -33,9 +33,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="AzureTableConnector, Version=2.0.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\AzureTableConnector.2.0.2\lib\net46\AzureTableConnector.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="AzureTableConnector, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\AzureTableConnector.3.0.0\lib\net46\AzureTableConnector.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.Data.Core, Version=1.21.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.21.0\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
@@ -244,8 +243,8 @@
       <HintPath>..\packages\System.Xml.XmlDocument.4.3.0\lib\net46\System.Xml.XmlDocument.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TradingExecutor.Core, Version=2.1.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\TradingExecutor.Core.2.1.0\lib\net46\TradingExecutor.Core.dll</HintPath>
+    <Reference Include="TradingExecutor.Core, Version=2.2.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TradingExecutor.Core.2.2.0\lib\net46\TradingExecutor.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

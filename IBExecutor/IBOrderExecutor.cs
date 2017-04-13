@@ -61,6 +61,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private ConcurrentDictionary<int, string> failedOrderCancellationRequests = new ConcurrentDictionary<int, string>();
 
+        private bool isTradingConnectionLost = false;
+        private object isTradingConnectionLostLocker = new object();
+        private DateTimeOffset lastTradingConnectionLostCheck = DateTimeOffset.MinValue;
+        private object lastTradingConnectionLostCheckLocker = new object();
+        private DateTimeOffset lastTradingConnectionResumedCheck = DateTimeOffset.MinValue;
+        private object lastTradingConnectionResumedCheckLocker = new object();
+
+        public event Action TradingConnectionLost;
+        public event Action TradingConnectionResumed;
+
         internal void NotifyOrderCancelRequestFailed(int orderId, string error)
         {
             error = error ?? "Unknown error";
@@ -178,6 +188,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.ibClient.IBConnectionEstablished += () =>
             {
+                SetIsTradingConnectionLostFlag(false);
+                TradingConnectionResumed?.Invoke();
+
                 logger.Info("IB client (re)connected. Requesting open orders");
                 RequestOpenOrders();
             };
@@ -434,7 +447,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void RequestOpenOrders()
         {
-            ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
+            if (!isTradingConnectionLost)
+                ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
+            else
+                logger.Error($"Not requesting open orders: flag {nameof(isTradingConnectionLost)} is raised");
         }
 
         private void StartOrdersPlacingQueue()
@@ -665,7 +681,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             if (!ibClient.IsConnected())
             {
-                logger.Error("Cannot place limit order as the IB client is not connected");
+                logger.Error("Cannot place LIMIT order as the IB client is not connected");
+                return null;
+            }
+
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot place LIMIT order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
             }
 
@@ -709,6 +731,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot place STOP order because flag {nameof(isTradingConnectionLost)} is raised");
+                return null;
+            }
+
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
                 ct = this.stopRequestedCt;
@@ -745,6 +773,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place MARKET order as the IB client is not connected");
+                return null;
+            }
+
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot place MARKET order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
             }
 
@@ -787,6 +821,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot place TRAILING_MARKET_IF_TOUCHED order because flag {nameof(isTradingConnectionLost)} is raised");
+                return null;
+            }
+
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
                 ct = stopRequestedCt;
@@ -824,6 +864,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place TRAILING_STOP order as the IB client is not connected");
+                return null;
+            }
+
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot place {TRAILING_STOP} order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
             }
 
@@ -900,6 +946,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return new GenericActionResult(false, err);
             }
 
+            if (!isTradingConnectionLost)
+            {
+                string err = $"Cannot cancel order because flag {nameof(isTradingConnectionLost)} is raised";
+                logger.Error(err);
+                return new GenericActionResult(false, err);
+            }
+
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
                 ct = stopRequestedCt;
@@ -972,6 +1025,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<GenericActionResult> CancelAllOrders(IEnumerable<Cross> crosses, CancellationToken ct = default(CancellationToken))
         {
+            if (!ibClient.IsConnected())
+            {
+                string err = "Cannot cancel all orders as the IB client is not connected";
+                logger.Error(err);
+                return new GenericActionResult(false, err);
+            }
+
+            if (!isTradingConnectionLost)
+            {
+                string err = $"Cannot cancel all orders because flag {nameof(isTradingConnectionLost)} is raised";
+                logger.Error(err);
+                return new GenericActionResult(false, err);
+            }
+
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
                 ct = this.stopRequestedCt;
@@ -1025,6 +1092,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<Dictionary<Cross, double?>> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
         {
+            if (!ibClient.IsConnected())
+            {
+                logger.Error("Cannot close any position as the IB client is not connected");
+                return new Dictionary<Cross, double?>();
+            }
+
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot close any position because flag {nameof(isTradingConnectionLost)} is raised");
+                return new Dictionary<Cross, double?>();
+            }
+
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
                 ct = this.stopRequestedCt;
@@ -1112,6 +1191,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<GenericActionResult<Order>> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
         {
+            if (!ibClient.IsConnected())
+            {
+                logger.Error("Cannot update order level as the IB client is not connected");
+                return null;
+            }
+
+            if (!isTradingConnectionLost)
+            {
+                logger.Error($"Cannot update order level because flag {nameof(isTradingConnectionLost)} is raised");
+                return null;
+            }
+
             logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
 
             Order currentOrder;
@@ -1203,6 +1294,58 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Error($"Unable to find order {orderId} in the list");
                 return null;
+            }
+        }
+
+        internal bool HandleTradingDisconnection()
+        {
+            // Throttle notifications
+            if (DateTimeOffset.Now.Subtract(lastTradingConnectionLostCheck) > TimeSpan.FromSeconds(5))
+            {
+                lock (lastTradingConnectionLostCheckLocker)
+                {
+                    lastTradingConnectionLostCheck = DateTimeOffset.Now;
+                }
+
+                SetIsTradingConnectionLostFlag(true);
+
+                logger.Warn("Trading connection is lost: notifying interested parties");
+
+                TradingConnectionLost?.Invoke();
+
+                return true;
+            }
+            else
+                return false; // No need to relay the error again
+        }
+
+        internal bool HandleTradingReconnection()
+        {
+            // Throttle notifications
+            if (DateTimeOffset.Now.Subtract(lastTradingConnectionResumedCheck) > TimeSpan.FromSeconds(5))
+            {
+                lock (lastTradingConnectionResumedCheckLocker)
+                {
+                    lastTradingConnectionResumedCheck = DateTimeOffset.Now;
+                }
+
+                SetIsTradingConnectionLostFlag(true);
+
+                logger.Warn("Trading connection is resumed: notifying interested parties");
+
+                TradingConnectionResumed?.Invoke();
+
+                return true;
+            }
+            else
+                return false; // No need to relay the error again
+        }
+
+        private void SetIsTradingConnectionLostFlag(bool value)
+        {
+            lock (isTradingConnectionLostLocker)
+            {
+                isTradingConnectionLost = value;
             }
         }
 

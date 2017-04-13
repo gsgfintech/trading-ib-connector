@@ -95,7 +95,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (clientConfig == null)
                 throw new ArgumentNullException(nameof(clientConfig));
 
-            if (fxConverter == null)
+            if (clientType != IBrokerClientType.MarketData && fxConverter == null)
                 throw new ArgumentNullException(nameof(fxConverter));
 
             logger.Debug($"Loading IB client config for {clientConfig.Name}");
@@ -191,9 +191,23 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             subject = $"Order {error.RequestID} was cancelled";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}";
                             break;
-                        case 1100:
-                        case 1102:
+                        case 1100: // TWS<->IB connection broken
                             subject = error.ErrorCodeDescription;
+                            if (orderExecutor?.HandleTradingDisconnection() != true)
+                            {
+                                // Downgrade to INFO and do not relay to monitoring
+                                level = AlertLevel.INFO;
+                                relayToMonitoring = false;
+                            }
+                            break;
+                        case 1102: // TWS<->IB connection restored
+                            subject = error.ErrorCodeDescription;
+                            if (orderExecutor?.HandleTradingReconnection() != true)
+                            {
+                                // Downgrade to INFO and do not relay to monitoring
+                                level = AlertLevel.INFO;
+                                relayToMonitoring = false;
+                            }
                             break;
                         case 2103: // Market data connection lost
                             subject = error.ErrorCodeDescription;
