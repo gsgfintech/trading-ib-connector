@@ -55,7 +55,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<(List<RTBar> Bars, DateTimeOffset? LowerBound, DateTimeOffset? UpperBound)> Retrieve5SecondsHistoricalBars(Cross cross, DateTimeOffset lowerBound)
+        public async Task<(List<RTBar> Bars, DateTimeOffset? LowerBound, DateTimeOffset? UpperBound)> Retrieve5SecondsHistoricalBars(Cross cross, DateTimeOffset lowerBound, DateTimeOffset? upperBound = null)
         {
             int[] requestIds;
 
@@ -67,7 +67,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 using (var runner = new HistoricalDataRequestRunner(ibClient, cross, askRequest, midRequest, bidRequest))
                 {
-                    return await runner.Request5SecondsHistoricalBars(lowerBound);
+                    return await runner.Request5SecondsHistoricalBars(lowerBound, upperBound);
                 }
             }
             else
@@ -159,22 +159,25 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 requestCompletedEvent.Set();
             }
 
-            public async Task<(List<RTBar> Bars, DateTimeOffset? LowerBound, DateTimeOffset? UpperBound)> Request5SecondsHistoricalBars(DateTimeOffset upperBound)
+            public async Task<(List<RTBar> Bars, DateTimeOffset? LowerBound, DateTimeOffset? UpperBound)> Request5SecondsHistoricalBars(DateTimeOffset lowerBound, DateTimeOffset? upperBound)
             {
                 return await Task.Run(() =>
                 {
+                    int timespan = upperBound.HasValue ? Math.Min(askRequest.Timespan, (int)upperBound.Value.Subtract(lowerBound).TotalSeconds) : askRequest.Timespan;
+                    HistoricalDataTimeSpanUnit timespanUnit = HistoricalDataTimeSpanUnit.SECONDS;
+
                     // 1. Ask
-                    ibClient.RequestManager.HistoricalDataRequestManager.RequestHistoricalData(askRequest.RequestId, askRequest.Contract, upperBound, askRequest.Timespan, askRequest.TimespanUnit, askRequest.BarSize, askRequest.Type);
+                    ibClient.RequestManager.HistoricalDataRequestManager.RequestHistoricalData(askRequest.RequestId, askRequest.Contract, upperBound ?? lowerBound.AddSeconds(timespan), timespan, timespanUnit, askRequest.BarSize, askRequest.Type);
 
                     Task.Delay(TimeSpan.FromSeconds(1)).Wait();
 
-                    // 2. Mid
-                    ibClient.RequestManager.HistoricalDataRequestManager.RequestHistoricalData(midRequest.RequestId, midRequest.Contract, upperBound, midRequest.Timespan, midRequest.TimespanUnit, midRequest.BarSize, midRequest.Type);
+                    // 2. Mid                                                                                                                                   
+                    ibClient.RequestManager.HistoricalDataRequestManager.RequestHistoricalData(midRequest.RequestId, midRequest.Contract, upperBound ?? lowerBound.AddSeconds(timespan), timespan, timespanUnit, midRequest.BarSize, midRequest.Type);
 
                     Task.Delay(TimeSpan.FromSeconds(1)).Wait();
 
-                    // 3. Bid
-                    ibClient.RequestManager.HistoricalDataRequestManager.RequestHistoricalData(bidRequest.RequestId, bidRequest.Contract, upperBound, bidRequest.Timespan, bidRequest.TimespanUnit, bidRequest.BarSize, bidRequest.Type);
+                    // 3. Bid                                                                                                                                   
+                    ibClient.RequestManager.HistoricalDataRequestManager.RequestHistoricalData(bidRequest.RequestId, bidRequest.Contract, upperBound ?? lowerBound.AddSeconds(timespan), timespan, timespanUnit, bidRequest.BarSize, bidRequest.Type);
 
                     Task.Delay(TimeSpan.FromSeconds(1)).Wait();
 

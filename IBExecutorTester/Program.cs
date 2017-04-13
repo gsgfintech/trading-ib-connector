@@ -171,7 +171,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task TestHistoData(IBHistoricalDataProvider histoDataProvider)
         {
-            var result = await histoDataProvider.Retrieve5SecondsHistoricalBars(EURUSD, DateTimeOffset.Now.AddMonths(-6));
+            var result = await histoDataProvider.Retrieve5SecondsHistoricalBars(EURUSD, DateTimeOffset.Now.AddMonths(-6), DateTimeOffset.Now.AddMonths(-6).AddMinutes(15));
 
             if (result.Bars.IsNullOrEmpty())
                 logger.Error("Result is null");
