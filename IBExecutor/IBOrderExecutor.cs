@@ -447,10 +447,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void RequestOpenOrders()
         {
-            if (!isTradingConnectionLost)
-                ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
-            else
+            if (isTradingConnectionLost)
                 logger.Error($"Not requesting open orders: flag {nameof(isTradingConnectionLost)} is raised");
+            else
+                ibClient.RequestManager.OrdersRequestManager.RequestOpenOrdersFromThisClient();
         }
 
         private void StartOrdersPlacingQueue()
@@ -685,7 +685,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot place LIMIT order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
@@ -731,7 +731,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot place STOP order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
@@ -776,7 +776,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot place MARKET order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
@@ -821,7 +821,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot place TRAILING_MARKET_IF_TOUCHED order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
@@ -867,7 +867,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot place {TRAILING_STOP} order because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
@@ -946,7 +946,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return new GenericActionResult(false, err);
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 string err = $"Cannot cancel order because flag {nameof(isTradingConnectionLost)} is raised";
                 logger.Error(err);
@@ -1032,7 +1032,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return new GenericActionResult(false, err);
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 string err = $"Cannot cancel all orders because flag {nameof(isTradingConnectionLost)} is raised";
                 logger.Error(err);
@@ -1098,7 +1098,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return new Dictionary<Cross, double?>();
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot close any position because flag {nameof(isTradingConnectionLost)} is raised");
                 return new Dictionary<Cross, double?>();
@@ -1197,7 +1197,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            if (!isTradingConnectionLost)
+            if (isTradingConnectionLost)
             {
                 logger.Error($"Cannot update order level because flag {nameof(isTradingConnectionLost)} is raised");
                 return null;
@@ -1329,7 +1329,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     lastTradingConnectionResumedCheck = DateTimeOffset.Now;
                 }
 
-                SetIsTradingConnectionLostFlag(true);
+                SetIsTradingConnectionLostFlag(false);
 
                 logger.Warn("Trading connection is resumed: notifying interested parties");
 
@@ -1343,10 +1343,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void SetIsTradingConnectionLostFlag(bool value)
         {
+            logger.Info($"Setting {nameof(isTradingConnectionLost)} flag to {value}");
+
             lock (isTradingConnectionLostLocker)
             {
                 isTradingConnectionLost = value;
             }
+        }
+
+        public void ResetTradingConnectionStatus(bool isConnected)
+        {
+            SetIsTradingConnectionLostFlag(!isConnected);
+        }
+
+        public bool RequestTradingConnectionStatus()
+        {
+            return !isTradingConnectionLost;
         }
 
         public void Dispose()
