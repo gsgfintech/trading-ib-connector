@@ -714,7 +714,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                return PlaceOrder(order);
+                var result = PlaceOrder(order);
+
+                if (!result.Success)
+                    logger.Error(result.Message);
+
+                return result.Order;
             }
             else
             {
@@ -759,7 +764,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                return PlaceOrder(order);
+                var result = PlaceOrder(order);
+
+                if (!result.Success)
+                    logger.Error(result.Message);
+
+                return result.Order;
             }
             else
             {
@@ -804,7 +814,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                return PlaceOrder(order);
+                var result = PlaceOrder(order);
+
+                if (!result.Success)
+                    logger.Error(result.Message);
+
+                return result.Order;
             }
             else
             {
@@ -850,7 +865,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                return PlaceOrder(order);
+                var result = PlaceOrder(order);
+
+                if (!result.Success)
+                    logger.Error(result.Message);
+
+                return result.Order;
             }
             else
             {
@@ -896,7 +916,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                return PlaceOrder(order);
+                var result = PlaceOrder(order);
+
+                if (!result.Success)
+                    logger.Error(result.Message);
+
+                return result.Order;
             }
             else
             {
@@ -905,27 +930,33 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private Order PlaceOrder(Order order)
+        private (bool Success, string Message, Order Order) PlaceOrder(Order order)
         {
             lock (ordersToPlaceQueueLocker)
             {
-                int orderID = GetNextValidOrderID();
-
-                if (orderID < 0)
+                if (order.OrderID < 1)
                 {
-                    logger.Error("Not placing order: failed to get the next valid order ID");
-                    return null;
+                    order.OrderID = GetNextValidOrderID();
+
+                    if (order.OrderID < 0)
+                    {
+                        string err = "Not placing order: failed to get the next valid order ID";
+                        logger.Error(err);
+                        return (false, err, null);
+                    }
+                }
+                else // This is to update an existing order
+                {
+                    ordersPlaced.Remove(order.OrderID);
                 }
 
-                order.OrderID = orderID;
-
                 logger.Info($"Adding order {order.OrderID} to the list");
-                orders.TryAdd(order.OrderID, order);
+                orders.AddOrUpdate(order.OrderID, order, (key, oldValue) => order);
 
                 logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
                 ordersToPlaceQueue.Enqueue(order);
 
-                return order;
+                return (true, null, order);
             }
         }
 
@@ -1191,96 +1222,67 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<GenericActionResult<Order>> UpdateOrderLevel(int orderId, double newLevel, int? newQuantity = null, CancellationToken ct = default(CancellationToken))
         {
+            await Task.CompletedTask;
+
             if (!ibClient.IsConnected())
             {
-                logger.Error("Cannot update order level as the IB client is not connected");
-                return null;
+                string err = "Cannot update order level as the IB client is not connected";
+                logger.Error(err);
+                return new GenericActionResult<Order>(false, err, null);
             }
 
             if (isTradingConnectionLost)
             {
-                logger.Error($"Cannot update order level because flag {nameof(isTradingConnectionLost)} is raised");
-                return null;
+                string err = $"Cannot update order level because flag {nameof(isTradingConnectionLost)} is raised";
+                logger.Error(err);
+                return new GenericActionResult<Order>(false, err, null);
             }
-
-            logger.Info($"Replacing order {orderId} with a new order at level {newLevel}");
 
             Order currentOrder;
-            if (!orders.TryGetValue(orderId, out currentOrder))
+
+            if (orders.TryGetValue(orderId, out currentOrder))
             {
-                logger.Error($"Order {orderId} is unknown. Unable to update its level");
-                return null;
+                switch (currentOrder.Type)
+                {
+                    case LIMIT:
+                        logger.Info($"Updating level of LIMIT order {orderId} from {currentOrder.LimitPrice} to {newLevel}");
+
+                        currentOrder.LimitPrice = newLevel;
+
+                        if (newQuantity.HasValue && newQuantity.Value > 0)
+                            currentOrder.Quantity = newQuantity.Value;
+
+                        var limitUpdateResult = PlaceOrder(currentOrder);
+
+                        if (limitUpdateResult.Success)
+                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", limitUpdateResult.Order);
+                        else
+                            return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {limitUpdateResult.Message}");
+                    case STOP:
+                        logger.Info($"Updating level of STOP order {orderId} from {currentOrder.StopPrice} to {newLevel}");
+
+                        currentOrder.StopPrice = newLevel;
+
+                        if (newQuantity.HasValue && newQuantity.Value > 0)
+                            currentOrder.Quantity = newQuantity.Value;
+
+                        var stopUpdateResult = PlaceOrder(currentOrder);
+
+                        if (stopUpdateResult.Success)
+                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", stopUpdateResult.Order);
+                        else
+                            return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {stopUpdateResult.Message}");
+                    default:
+                        string err = $"Updating the level of orders of type {currentOrder.Type} is not supported";
+                        logger.Error(err);
+                        return new GenericActionResult<Order>(false, err);
+                }
             }
-
-            switch (currentOrder.Type)
+            else
             {
-                case LIMIT:
-                    // 1. Cancel existing order
-                    var limitCancelResult = await CancelOrder(orderId, ct);
-
-                    if (limitCancelResult.Success)
-                    {
-                        logger.Info($"Successfully cancelled current order {orderId}. Will place the updated one");
-
-                        // 2. Place new order
-                        Order newLimitOrder = await PlaceLimitOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
-
-                        if (newLimitOrder != null)
-                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", newLimitOrder);
-                        else
-                            return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: failed to placed new order");
-                    }
-                    else
-                    {
-                        string limitErr = $"Failed to cancel current order {orderId}: {limitCancelResult.Message}";
-                        logger.Error(limitErr);
-                        return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {limitErr}");
-                    }
-                case STOP:
-                    // 1. Place new order
-                    Order newStopOrder = await PlaceStopOrder(currentOrder.Cross, currentOrder.Side, newQuantity ?? currentOrder.Quantity, newLevel, currentOrder.TimeInForce, currentOrder.Strategy, currentOrder.ParentOrderID, currentOrder.Origin, currentOrder.GroupId, ct);
-
-                    if (newStopOrder != null)
-                    {
-                        // 2. Cancel original order
-                        var stopCancelResult = await CancelOrder(orderId, ct);
-
-                        if (stopCancelResult.Success)
-                        {
-                            logger.Info($"Successfully cancelled order {orderId}");
-                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", newStopOrder);
-                        }
-                        else
-                        {
-                            logger.Error($"Failed to cancel current order {orderId}. Requesting to cancel the new order just placed");
-
-                            var newStopCancelResult = await CancelOrder(newStopOrder.OrderID);
-
-                            if (newStopCancelResult.Success)
-                            {
-                                logger.Info($"New order {newStopOrder.OrderID} was cancelled successfully");
-                                return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: new order was placed but failed to cancel current order. New order was subsequently cancelled properly");
-                            }
-                            else
-                            {
-                                string stopCancelErr = $"Failed to update level of order {orderId} to {newLevel}: new order was placed but failed to cancel current order. Subsequently failed to cancel the new order: {newStopCancelResult.Message}. POTENTIALLY 2 ACTIVE STOP ORDERS !!";
-
-                                SendFatal($"Failed to update level of order {orderId} to {newLevel}", stopCancelErr);
-
-                                return new GenericActionResult<Order>(false, stopCancelErr);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        string stopErr = $"Failed to place new stop order. Not cancelling current order {orderId}";
-                        logger.Error(stopErr);
-                        return new GenericActionResult<Order>(false, stopErr);
-                    }
-                default:
-                    string err = $"Updating the level of orders of type {currentOrder.Type} is not supported";
-                    logger.Error(err);
-                    return new GenericActionResult<Order>(false, err);
+                string err = $"Order {orderId} is unknown. Unable to update its level";
+                logger.Error(err);
+                return new GenericActionResult<Order>(false, err, null);
             }
         }
 
