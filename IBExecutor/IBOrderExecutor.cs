@@ -1242,36 +1242,61 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             if (orders.TryGetValue(orderId, out currentOrder))
             {
+                if (currentOrder.Status != Submitted && currentOrder.Status != PreSubmitted)
+                {
+                    string err = $"Order {orderId} cannot be updated as it is in state {currentOrder.Status}";
+                    logger.Error(err);
+                    return new GenericActionResult<Order>(false, err);
+                }
+
                 switch (currentOrder.Type)
                 {
                     case LIMIT:
-                        logger.Info($"Updating level of LIMIT order {orderId} from {currentOrder.LimitPrice} to {newLevel}");
+                        if (currentOrder.LimitPrice != newLevel || (newQuantity.HasValue && newQuantity.Value != currentOrder.Quantity))
+                        {
+                            logger.Info($"Updating level of LIMIT order {orderId} from {currentOrder.LimitPrice} to {newLevel}");
 
-                        currentOrder.LimitPrice = newLevel;
+                            currentOrder.LimitPrice = newLevel;
 
-                        if (newQuantity.HasValue && newQuantity.Value > 0)
-                            currentOrder.Quantity = newQuantity.Value;
+                            if (newQuantity.HasValue && newQuantity.Value > 0)
+                                currentOrder.Quantity = newQuantity.Value;
 
-                        var limitUpdateResult = PlaceOrder(currentOrder);
+                            var limitUpdateResult = PlaceOrder(currentOrder);
 
-                        if (limitUpdateResult.Success)
-                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", limitUpdateResult.Order);
+                            if (limitUpdateResult.Success)
+                                return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", limitUpdateResult.Order);
+                            else
+                                return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {limitUpdateResult.Message}");
+                        }
                         else
-                            return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {limitUpdateResult.Message}");
+                        {
+                            string msg = $"No need to update order {orderId}: price and quantity are unchanged";
+                            logger.Info(msg);
+                            return new GenericActionResult<Order>(true, msg, currentOrder);
+                        }
                     case STOP:
-                        logger.Info($"Updating level of STOP order {orderId} from {currentOrder.StopPrice} to {newLevel}");
+                        if (currentOrder.StopPrice != newLevel || (newQuantity.HasValue && newQuantity.Value != currentOrder.Quantity))
+                        {
+                            logger.Info($"Updating level of STOP order {orderId} from {currentOrder.StopPrice} to {newLevel}");
 
-                        currentOrder.StopPrice = newLevel;
+                            currentOrder.StopPrice = newLevel;
 
-                        if (newQuantity.HasValue && newQuantity.Value > 0)
-                            currentOrder.Quantity = newQuantity.Value;
+                            if (newQuantity.HasValue && newQuantity.Value > 0)
+                                currentOrder.Quantity = newQuantity.Value;
 
-                        var stopUpdateResult = PlaceOrder(currentOrder);
+                            var stopUpdateResult = PlaceOrder(currentOrder);
 
-                        if (stopUpdateResult.Success)
-                            return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", stopUpdateResult.Order);
+                            if (stopUpdateResult.Success)
+                                return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", stopUpdateResult.Order);
+                            else
+                                return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {stopUpdateResult.Message}");
+                        }
                         else
-                            return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {stopUpdateResult.Message}");
+                        {
+                            string msg = $"No need to update order {orderId}: price and quantity are unchanged";
+                            logger.Info(msg);
+                            return new GenericActionResult<Order>(true, msg, currentOrder);
+                        }
                     default:
                         string err = $"Updating the level of orders of type {currentOrder.Type} is not supported";
                         logger.Error(err);
