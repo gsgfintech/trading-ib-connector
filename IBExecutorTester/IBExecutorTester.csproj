@@ -36,8 +36,8 @@
     <Reference Include="AzureTableConnector, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\AzureTableConnector.3.0.0\lib\net46\AzureTableConnector.dll</HintPath>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.21.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.21.0\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.22.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.22.0\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.3.2.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.FXConverter.1.3.2\lib\net46\Capital.GSG.FX.FXConverter.dll</HintPath>
@@ -46,12 +46,20 @@
       <HintPath>..\packages\Capital.GSG.FX.FXConverterServiceConnector.2.1.0\lib\net461\Capital.GSG.FX.FXConverterServiceConnector.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Capital.GSG.FX.MarketDataService.Connector, Version=1.3.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.1.3.0\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="Capital.GSG.FX.MarketDataService.Connector, Version=2.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.MarketDataService.Connector.2.0.1\lib\net46\Capital.GSG.FX.MarketDataService.Connector.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.Utils.Core, Version=1.3.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.Utils.Core.1.3.0\lib\net46\Capital.GSG.FX.Utils.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Capital.GSG.FX.Utils.Core.Logging, Version=2.2.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Utils.Core.Logging.2.2.1\lib\net46\Capital.GSG.FX.Utils.Core.Logging.dll</HintPath>
+    </Reference>
+    <Reference Include="Flurl, Version=2.3.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Flurl.2.3.0\lib\netstandard1.4\Flurl.dll</HintPath>
+    </Reference>
+    <Reference Include="Flurl.Http, Version=1.1.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Flurl.Http.1.1.2\lib\net45\Flurl.Http.dll</HintPath>
     </Reference>
     <Reference Include="IBData, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IBData.1.0.0\lib\net46\IBData.dll</HintPath>
@@ -222,6 +230,9 @@
     <Reference Include="System.Spatial, Version=5.8.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Spatial.5.8.2\lib\net40\System.Spatial.dll</HintPath>
       <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Text.Encoding.CodePages, Version=4.0.2.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Text.Encoding.CodePages.4.3.0\lib\net46\System.Text.Encoding.CodePages.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Thread, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Threading.Thread.4.3.0\lib\net46\System.Threading.Thread.dll</HintPath>

@@ -1264,9 +1264,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             var limitUpdateResult = PlaceOrder(currentOrder);
 
                             if (limitUpdateResult.Success)
-                                return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", limitUpdateResult.Order);
+                            {
+                                AddOrderHistoryPoint(orderId, new OrderHistoryPoint()
+                                {
+                                    Message = $"Updated limit price to {newLevel}",
+                                    Status = limitUpdateResult.Order.Status,
+                                    Timestamp = DateTimeOffset.Now
+                                });
+
+                                return new GenericActionResult<Order>(true, $"Updated limit price of order {orderId} to {newLevel}", limitUpdateResult.Order);
+                            }
                             else
-                                return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {limitUpdateResult.Message}");
+                                return new GenericActionResult<Order>(false, $"Failed to update limit price of order {orderId} to {newLevel}: {limitUpdateResult.Message}");
                         }
                         else
                         {
@@ -1287,9 +1296,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             var stopUpdateResult = PlaceOrder(currentOrder);
 
                             if (stopUpdateResult.Success)
-                                return new GenericActionResult<Order>(true, $"Updated level of order {orderId} to {newLevel}", stopUpdateResult.Order);
+                            {
+                                AddOrderHistoryPoint(orderId, new OrderHistoryPoint()
+                                {
+                                    Message = $"Updated stop price to {newLevel}",
+                                    Status = stopUpdateResult.Order.Status,
+                                    Timestamp = DateTimeOffset.Now
+                                });
+
+                                return new GenericActionResult<Order>(true, $"Updated stop price of order {orderId} to {newLevel}", stopUpdateResult.Order);
+                            }
                             else
-                                return new GenericActionResult<Order>(false, $"Failed to update level of order {orderId} to {newLevel}: {stopUpdateResult.Message}");
+                                return new GenericActionResult<Order>(false, $"Failed to stop price of order {orderId} to {newLevel}: {stopUpdateResult.Message}");
                         }
                         else
                         {
@@ -1309,6 +1327,24 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Error(err);
                 return new GenericActionResult<Order>(false, err, null);
             }
+        }
+
+        private void AddOrderHistoryPoint(int orderId, OrderHistoryPoint point)
+        {
+            if (orders.ContainsKey(orderId))
+            {
+                orders.AddOrUpdate(orderId, (key) =>
+                {
+                    logger.Error($"Unable to add history point to unknown order {orderId}");
+                    return null;
+                }, (key, oldValue) =>
+                {
+                    oldValue.History.Add(point);
+                    return oldValue;
+                });
+            }
+            else
+                logger.Error($"Unable to add history point to unknown order {orderId}");
         }
 
         internal Order GetOrder(int orderId)
