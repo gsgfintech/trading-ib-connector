@@ -486,8 +486,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                                     logger.Info($"Placing order {order.OrderID}: {order}");
                                     ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, GetContract(order.Cross), order);
 
-                                    logger.Debug($"Adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
-                                    ordersAwaitingPlaceConfirmation.TryAdd(order.OrderID, DateTime.Now);
+                                    if (order.Status == PreSubmitted)
+                                    {
+                                        logger.Debug($"Adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
+                                        ordersAwaitingPlaceConfirmation.TryAdd(order.OrderID, DateTime.Now);
+                                    }
+                                    else
+                                        logger.Info($"Not adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue because it is not in state PreSubmitted ({order.Status})"); // Sometimes when we update an existing order (ie an order that is already in state Submitted) IB doesn't send another "Submitted" status update. Therefore we need to de-activate the ordersAwaitingPlaceConfirmation check in this particular case
 
                                     ordersPlaced.Add(order.OrderID);
 
