@@ -84,9 +84,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                IBrokerClient brokerClient = await BrokerClient.SetupBrokerClient(IBrokerClientType.Both, tradingExecutorRunner, brokerClientConfig, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts);
-                ((BrokerClient)brokerClient).StopComplete += (() => stopCompleteEvent.Set());
-                ((BrokerClient)brokerClient).AlertReceived += (alert) =>
+                BrokerClient brokerClient = (BrokerClient)(await BrokerClient.SetupBrokerClient(IBrokerClientType.Both, tradingExecutorRunner, brokerClientConfig, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts));
+                brokerClient.StopComplete += (() => stopCompleteEvent.Set());
+                brokerClient.AlertReceived += (alert) =>
                 {
                     logger.Error(alert);
                 };
@@ -127,7 +127,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //}, null, 1000, 1000);
 
                 logger.Debug("Sleeping for 10 seconds");
-                Task.Delay(TimeSpan.FromSeconds(15)).Wait();
+                Task.Delay(TimeSpan.FromSeconds(10)).Wait();
+
+                await FinancialAdvisorTester.Test(brokerClient);
 
                 //await SubscribeAndListenRTBars(brokerClient);
 
@@ -145,7 +147,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 //await TestPlaceAndCancel(brokerClient.OrderExecutor);
                 //await TestPlaceAndUpdateLimit((IBOrderExecutor)brokerClient.OrderExecutor);
-                await TestPlaceAndUpdateStop((IBOrderExecutor)brokerClient.OrderExecutor);
+                //await TestPlaceAndUpdateStop((IBOrderExecutor)brokerClient.OrderExecutor);
 
                 //await TestHistoData(((BrokerClient)brokerClient).HistoricalDataProvider);
                 //TestNews(((BrokerClient)brokerClient).NewsProvider);

@@ -35,6 +35,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly ITradingExecutorRunner tradingExecutorRunner;
         public ITradingExecutorRunner TradingExecutorRunner { get { return tradingExecutorRunner; } }
 
+        private IBFinancialAdvisorProvider faProvider;
+        public IBFinancialAdvisorProvider FAProvider { get { return faProvider; } }
+
         private IBHistoricalDataProvider historicalDataProvider;
         public IBHistoricalDataProvider HistoricalDataProvider { get { return historicalDataProvider; } }
 
@@ -124,6 +127,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Setting up orders executor, positions executor and trades executor");
 
+                faProvider = new IBFinancialAdvisorProvider(ibClient, tradingAccount, stopRequestedCt);
                 orderExecutor = IBOrderExecutor.SetupOrderExecutor(this, ibClient, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, ibContracts, stopRequestedCt);
                 positionExecutor = IBPositionsExecutor.SetupIBPositionsExecutor(ibClient, tradingAccount, fxConverter, stopRequestedCt);
                 tradesExecutor = new IBTradesExecutor(this, ibClient, fxConverter, stopRequestedCt);

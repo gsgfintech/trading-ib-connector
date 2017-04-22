@@ -1,13 +1,12 @@
 ﻿using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using System;
-using System.Collections.Generic;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI
 {
     public partial class IBClientResponsesManager
     {
-        public event Func<string, IEnumerable<string>> ManagedAccountsListReceived;
-        public event Func<int, string, FinancialAdvisors> FinancialAdvisorsDataReceived;
+        public event Action<string> ManagedAccountsListReceived;
+        public event Action<FinancialAdvisorsDataType, string> FinancialAdvisorsDataReceived;
 
         /// <summary>
         /// Receives a comma-separated string containing IDs of managed accounts
@@ -28,7 +27,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI
         /// <param name="faXmlData">The XML string containing the previously requested FA configuration information</param>
         public void receiveFA(int faDataType, string faXmlData)
         {
-            FinancialAdvisorsDataReceived?.Invoke(faDataType, faXmlData);
+            FinancialAdvisorsDataReceived?.Invoke((FinancialAdvisorsDataType)faDataType, faXmlData);
         }
     }
 }
