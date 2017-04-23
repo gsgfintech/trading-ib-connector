@@ -27,6 +27,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             ClientSocket?.reqAccountUpdates(true, accountCode);
         }
 
+        public void SubscribeToAccountUpdates(Dictionary<int, string> requests)
+        {
+            foreach (var request in requests)
+            {
+                ClientSocket?.reqAccountUpdatesMulti(request.Key, request.Value, null, true);
+            }
+        }
+
         /// <summary>
         /// Subscribes to a specific account's information and portfolio. Use this method to start and stop a subscription to a single account. As a result of this subscription, 
         /// the account's information, portfolio and last update time will be received via the AccountUpdateTimeReceived, AccountValueUpdated and PortfolioUpdated events of the responses manager
@@ -52,8 +60,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             string accountTagsStr = String.Empty;
 
             accountTagsStr = accountTags?.Aggregate<string, string>(String.Empty, (cur, next) => { return $"{cur},{next}"; });
-
-            ClientSocket?.reqAccountSummary(requestID, group, accountTagsStr);
+            
+            //ClientSocket?.reqAccountSummary(requestID, group, accountTagsStr);
+            ClientSocket?.reqAccountSummary(requestID, group, "AccountType,NetLiquidation,TotalCashValue,SettledCash,AccruedCash,BuyingPower,EquityWithLoanValue,PreviousEquityWithLoanValue,GrossPositionValue,RegTEquity,RegTMargin,SMA,InitMarginReq,MaintMarginReq,AvailableFunds,ExcessLiquidity,Cushion,FullInitMarginReq,FullMaintMarginReq,FullAvailableFunds,FullExcessLiquidity,LookAheadNextChange,LookAheadInitMarginReq,LookAheadMaintMarginReq,LookAheadAvailableFunds,LookAheadExcessLiquidity,HighestSeverity,DayTradesRemaining,Leverage,$LEDGER,$LEDGER:USD");
         }
 
         /// <summary>

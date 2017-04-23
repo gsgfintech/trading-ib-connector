@@ -3,6 +3,7 @@ using Capital.GSG.FX.Utils.Core;
 using log4net;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
@@ -14,18 +15,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public static async Task Test(BrokerClient brokerClient)
         {
             IBFinancialAdvisorProvider faProvider = brokerClient.FAProvider;
+            IBPositionsExecutor positionsExecutor = (IBPositionsExecutor)brokerClient.PositionExecutor;
 
-            //await TestRequestManagedAccounts(faProvider);
-            await TestRequestFAConfigurations(faProvider);
+            await TestRequestManagedAccounts(faProvider, positionsExecutor);
+            //await TestRequestFAConfigurations(faProvider);
+            //await TestRequestAccountsSummary(positionsExecutor);
         }
 
-        private static async Task TestRequestManagedAccounts(IBFinancialAdvisorProvider faProvider)
+        private static async Task TestRequestManagedAccounts(IBFinancialAdvisorProvider faProvider, IBPositionsExecutor positionsExecutor)
         {
             var result = await faProvider.RequestManagedAccountsList();
 
             string accounts = !result.Accounts.IsNullOrEmpty() ? string.Join(", ", result.Accounts) : "";
 
             logger.Info($"Success:{result.Success} | Message:{result.Message} | Accounts:{accounts}");
+
+            await TestRequestAccountsDetails(positionsExecutor, result.Accounts);
         }
 
         private static async Task TestRequestFAConfigurations(IBFinancialAdvisorProvider faProvider)
@@ -75,9 +80,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 var updateResult = await faProvider.UpdateFAAllocationProfiles(profiles);
 
                 logger.Info($"Success:{updateResult.Success} | Message:{updateResult.Message}");
-
-                await SaveFAConfiguration(result.FAConfiguration);
             }
+        }
+
+        private static async Task TestRequestAccountsSummary(IBPositionsExecutor positionsExecutor)
+        {
+            var result = await positionsExecutor.RequestAccountsSummary();
+
+            logger.Info($"Success:{result.Success} | Message:{result.Message}");
+        }
+
+        private static async Task TestRequestAccountsDetails(IBPositionsExecutor positionsExecutor, IEnumerable<string> accounts)
+        {
+            var result = await positionsExecutor.RequestAccountsDetails(accounts);
+
+            logger.Info($"Success:{result.Success} | Message:{result.Message}");
         }
     }
 }
