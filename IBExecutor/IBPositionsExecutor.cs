@@ -56,7 +56,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"IB client (re)connected. Will resubcribe to account updates for {tradingAccount}");
 
-                //SubscribeAccountUpdates(tradingAccount);
+                SubscribeAccountUpdates(tradingAccount);
             };
         }
 
@@ -70,7 +70,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             _instance = new IBPositionsExecutor(ibClient, fxConverter, tradingAccount, stopRequestedCt);
 
-            //_instance.SubscribeAccountUpdates(tradingAccount);
+            _instance.SubscribeAccountUpdates(tradingAccount);
 
             return _instance;
         }
