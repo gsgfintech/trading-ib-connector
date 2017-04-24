@@ -4,6 +4,14 @@
     <TargetFramework>net46</TargetFramework>
     <AssemblyName>Net.Teirlinck.FX.IBAPIConnector</AssemblyName>
     <RootNamespace>Net.Teirlinck.FX.InteractiveBrokersAPI</RootNamespace>
+    <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+    <Version>5.10.5</Version>
+    <Company>GSG Limited</Company>
+    <Product>Capital.GSG.FX.IBAPIConnector</Product>
+    <PackageId>Capital.GSG.FX.IBAPIConnector</PackageId>
+    <Authors>GSG Limited</Authors>
+    <Description>Connector lib for IB TWS API</Description>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
