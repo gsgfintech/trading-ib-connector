@@ -40,6 +40,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static ConcurrentDictionary<int, int> orderRequests = new ConcurrentDictionary<int, int>();
 
+        internal const string MonitorClientId = "7f5f6a33-15ae-4ebc-9898-999c30ec9e46";
+        internal const string MonitorAppKey = "Cb4LvRyGJso7I8KKMmaS5GQu+3+EIfelXT9cToGKZP4=";
+        internal const string MonitorBackendAddress = "https://stratedgeme-monitor-qa-backend.azurewebsites.net";
+        internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-qa-backend";
+
         static void Main(string[] args)
         {
             XmlConfigurator.Configure();
@@ -50,8 +55,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Host = "tryphon.gsg.capital",
                 IBDataServiceEndpoint = "https://tryphon.gsg.capital:6583",
                 Name = "IB_MDClient_Test",
-                Port = 7497,
-                TradingAccount = "DU519219"
+                Port = 7498,
+                TradingAccount = "DF665180"
             };
 
             string monitoringEndpoint = "http://localhost:51468/";

@@ -1,4 +1,5 @@
 ﻿using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
+using Capital.GSG.FX.Monitoring.Server.Connector;
 using Capital.GSG.FX.Utils.Core;
 using log4net;
 using System;
@@ -95,6 +96,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             var result = await positionsExecutor.RequestAccountsDetails(accounts);
 
             logger.Info($"Success:{result.Success} | Message:{result.Message}");
+
+            if (!result.Accounts.IsNullOrEmpty())
+            {
+                BackendAccountsConnector connector = new MonitoringServerConnector(Program.MonitorClientId, Program.MonitorAppKey, Program.MonitorBackendAddress, Program.MonitorBackendAppUri).AccountsConnector;
+
+                foreach (var account in result.Accounts.Values)
+                {
+                    await connector.AddOrUpdate(account);
+                }
+            }
         }
     }
 }
