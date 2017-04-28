@@ -1,4 +1,5 @@
 ﻿using Capital.GSG.FX.Data.Core.ContractData;
+using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using Capital.GSG.FX.Data.Core.OrderData;
 using log4net;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
@@ -34,9 +35,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// Use a sequential ID starting with the ID received at the nextValidId() method</param>
         /// <param name="contract">This class contains attributes used to describe the contract</param>
         /// <param name="order">This structure contains the details of the order</param>
-        public void RequestPlaceOrder(int orderID, Contract contract, Order order)
+        public void RequestPlaceOrder(int orderID, Contract contract, Order order, FAGroup faGroup = null, string faAllocationProfileName = null)
         {
             IBApi.Order ibOrder = order.ToIBOrder();
+
+            if (faGroup != null)
+            {
+                ibOrder.FaGroup = faGroup.Name;
+                ibOrder.FaMethod = faGroup.DefaultMethod.ToString();
+
+                if (faGroup.DefaultMethod == FAGroupMethod.PctChange)
+                    ibOrder.FaPercentage = "100"; // TODO
+            }
+            else if (!string.IsNullOrEmpty(faAllocationProfileName))
+                ibOrder.FaProfile = faAllocationProfileName;
+
             ClientSocket?.placeOrder(orderID, contract.ToIBContract(), ibOrder);
         }
 

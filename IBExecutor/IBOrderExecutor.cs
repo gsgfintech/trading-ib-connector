@@ -19,6 +19,7 @@ using Capital.GSG.FX.Data.Core.OrderData;
 using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Utils.Core;
 using Capital.GSG.FX.Data.Core.WebApi;
+using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -484,7 +485,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                                     logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.OrderID}");
 
                                     logger.Info($"Placing order {order.OrderID}: {order}");
-                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, GetContract(order.Cross), order);
+                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, GetContract(order.Cross), order, faAllocationProfileName: "SingleTicketAllocation");
 
                                     if (order.Status == PreSubmitted)
                                     {

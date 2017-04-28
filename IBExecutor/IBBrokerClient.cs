@@ -13,6 +13,7 @@ using Capital.GSG.FX.Data.Core.OrderData;
 using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Data.Core.ContractData;
 using Capital.GSG.FX.IBData;
+using IBData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -23,20 +24,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private const string IsConnectedKey = "IsConnected";
         private const string MessageKey = "Message";
 
-        private static BrokerClient _instance;
-
         private readonly IBClient ibClient;
         private readonly string clientName;
         private readonly CancellationToken stopRequestedCt;
+
+        public bool IsInstitutionalAccount { get; private set; }
 
         private readonly IBrokerClientType brokerClientType;
         public IBrokerClientType BrokerClientType { get { return brokerClientType; } }
 
         private readonly ITradingExecutorRunner tradingExecutorRunner;
         public ITradingExecutorRunner TradingExecutorRunner { get { return tradingExecutorRunner; } }
-
-        private IBFinancialAdvisorProvider faProvider;
-        public IBFinancialAdvisorProvider FAProvider { get { return faProvider; } }
 
         private IBHistoricalDataProvider historicalDataProvider;
         public IBHistoricalDataProvider HistoricalDataProvider { get { return historicalDataProvider; } }
@@ -72,10 +70,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        private BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, int clientID, string clientName, string socketHost, int socketPort, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, CancellationToken stopRequestedCt)
+        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt)
         {
-            this.brokerClientType = clientType;
-            this.clientName = clientName;
+            brokerClientType = clientType;
+            clientName = clientConfig.Name;
             this.tradingExecutorRunner = tradingExecutorRunner;
             this.monitoringEndpoint = monitoringEndpoint;
 
@@ -83,53 +81,46 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             Status = new SystemStatus(clientName);
 
-            ibClient = new IBClient(clientID, clientName, socketHost, socketPort, ibApiErrorCodes, stopRequestedCt);
+            ibClient = new IBClient(clientConfig.ClientNumber, clientConfig.Name, clientConfig.Host, clientConfig.Port, ibApiErrorCodes, stopRequestedCt);
             ibClient.APIErrorReceived += IbClient_APIErrorReceived;
             ibClient.IBConnectionEstablished += () => UpdateStatus(IsConnectedKey, true, SystemStatusLevel.GREEN);
             ibClient.IBConnectionLost += () => UpdateStatus(IsConnectedKey, false, SystemStatusLevel.RED);
 
+            ibClient.ResponseManager.ManagedAccountsListReceived += ManagedAccountsListReceived;
+
             // Throttle status updates to one every five seconds
             // Delay the first status update by 3 seconds, otherwise the client is already connected before the trade engine has had time to wire up the "StatusUpdated" event listener
             statusUpdateTimer = new Timer(state => SendStatusUpdate(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
-        }
-
-        public static async Task<IBrokerClient> SetupBrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, GenericIBClientConfig clientConfig, IFxConverter fxConverter, MDConnector mdConnector, string monitoringEndpoint, CancellationToken stopRequestedCt, bool logTicks, IEnumerable<Contract> ibContracts)
-        {
-            if (clientConfig == null)
-                throw new ArgumentNullException(nameof(clientConfig));
-
-            if (clientType != IBrokerClientType.MarketData && fxConverter == null)
-                throw new ArgumentNullException(nameof(fxConverter));
-
-            logger.Debug($"Loading IB client config for {clientConfig.Name}");
-            logger.Debug($"ClientNumber: {clientConfig.ClientNumber}");
-            logger.Debug($"IBHost: {clientConfig.Host}");
-            logger.Debug($"IBPort: {clientConfig.Port}");
-            logger.Debug($"TradingAccount: {clientConfig.TradingAccount}");
-            logger.Debug($"IBDataServiceEndpoint: {clientConfig.IBDataServiceEndpoint}");
-
-            APIErrorCodesConnector errorCodesConnector = APIErrorCodesConnector.GetConnector(clientConfig.IBDataServiceEndpoint);
-            List<APIErrorCode> ibApiErrorCodes = await errorCodesConnector.GetAll(stopRequestedCt);
-
-            _instance = new BrokerClient(clientType, tradingExecutorRunner, clientConfig.ClientNumber, clientConfig.Name, clientConfig.Host, clientConfig.Port, ibApiErrorCodes, monitoringEndpoint, stopRequestedCt);
 
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
 
-            _instance.SetupExecutors(fxConverter, mdConnector, clientConfig.TradingAccount, logTicks, stopRequestedCt, ibContracts);
-
-            return _instance;
+            SetupExecutors(fxConverter, mdConnector, logTicks, stopRequestedCt, ibContracts);
         }
 
-        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, string tradingAccount, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
+        private void ManagedAccountsListReceived(string accountsStr)
+        {
+            var accounts = accountsStr.Split(',').Where(a => !string.IsNullOrEmpty(a));
+
+            if (accounts.Count() > 1)
+            {
+                logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
+                IsInstitutionalAccount = true;
+            }
+            else
+            {
+                logger.Info($"The user connected to this TWS only manages one account ({accountsStr}): this is an individual account");
+                IsInstitutionalAccount = false;
+            }
+        }
+
+        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
         {
             if (brokerClientType != IBrokerClientType.MarketData)
             {
                 logger.Info("Setting up orders executor, positions executor and trades executor");
 
-                faProvider = new IBFinancialAdvisorProvider(ibClient, tradingAccount, stopRequestedCt);
                 orderExecutor = IBOrderExecutor.SetupOrderExecutor(this, ibClient, fxConverter, mdConnector, tradingExecutorRunner, monitoringEndpoint, ibContracts, stopRequestedCt);
-                positionExecutor = IBPositionsExecutor.SetupIBPositionsExecutor(ibClient, tradingAccount, fxConverter, stopRequestedCt);
                 tradesExecutor = new IBTradesExecutor(this, ibClient, fxConverter, stopRequestedCt);
             }
 

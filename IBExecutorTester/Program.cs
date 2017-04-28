@@ -20,6 +20,8 @@ using Capital.GSG.FX.IBData.Service.Connector;
 using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.Utils.Core;
 using System.Linq;
+using IBData;
+using Capital.GSG.FX.IBData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -49,14 +51,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             XmlConfigurator.Configure();
 
-            GenericIBClientConfig brokerClientConfig = new GenericIBClientConfig()
+            TwsClientConfig brokerClientConfig = new TwsClientConfig()
             {
                 ClientNumber = 7,
                 Host = "tryphon.gsg.capital",
-                IBDataServiceEndpoint = "https://tryphon.gsg.capital:6583",
                 Name = "IB_MDClient_Test",
-                Port = 7498,
-                TradingAccount = "DF665180"
+                Port = 7498
             };
 
             string monitoringEndpoint = "http://localhost:51468/";
@@ -77,7 +77,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Do(brokerClientConfig, azureTableConnectionString).Wait();
         }
 
-        private static async Task Do(GenericIBClientConfig brokerClientConfig, string azureTableConnectionString)
+        private static async Task Do(TwsClientConfig clientConfig, string azureTableConnectionString)
         {
             try
             {
@@ -89,7 +89,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                BrokerClient brokerClient = (BrokerClient)(await BrokerClient.SetupBrokerClient(IBrokerClientType.Both, tradingExecutorRunner, brokerClientConfig, fxConverter, mdConnector, null, stopRequestedCts.Token, false, ibContracts));
+                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, fxConverter, mdConnector, ibContracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token);
                 brokerClient.StopComplete += (() => stopCompleteEvent.Set());
                 brokerClient.AlertReceived += (alert) =>
                 {
@@ -134,14 +134,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Debug("Sleeping for 10 seconds");
                 Task.Delay(TimeSpan.FromSeconds(10)).Wait();
 
-                await FinancialAdvisorTester.Test(brokerClient);
-
                 //await SubscribeAndListenRTBars(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
-                //await PlaceMarketOrders(brokerClient.OrderExecutor);
+                await PlaceMarketOrders(brokerClient.OrderExecutor);
 
                 //await PlaceStopOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateStopOrders(brokerClient.OrderExecutor);
@@ -355,11 +353,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task PlaceMarketOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, OrderSide.SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("MarketOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
             Thread.Sleep(1000);
 
-            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, OrderSide.SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
             Console.WriteLine("MarketOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }

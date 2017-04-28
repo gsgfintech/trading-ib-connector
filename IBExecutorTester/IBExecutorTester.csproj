@@ -64,9 +64,8 @@
     <Reference Include="FXTradingMongoConnector.Core, Version=1.6.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\FXTradingMongoConnector.Core.1.6.1\lib\net46\FXTradingMongoConnector.Core.dll</HintPath>
     </Reference>
-    <Reference Include="IBData, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\IBData.1.0.0\lib\net46\IBData.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="IBData, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\IBData.1.1.0\lib\net46\IBData.dll</HintPath>
     </Reference>
     <Reference Include="IBData.Service.Connector, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IBData.Service.Connector.2.0.0\lib\net46\IBData.Service.Connector.dll</HintPath>
@@ -127,8 +126,8 @@
     <Reference Include="MongoDB.Driver.Core, Version=2.4.3.23, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MongoDB.Driver.Core.2.4.3\lib\net45\MongoDB.Driver.Core.dll</HintPath>
     </Reference>
-    <Reference Include="Monitoring.Server.Connector, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Monitoring.Server.Connector.3.8.0\lib\net46\Monitoring.Server.Connector.dll</HintPath>
+    <Reference Include="Monitoring.Server.Connector, Version=3.12.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Monitoring.Server.Connector.3.12.2\lib\net46\Monitoring.Server.Connector.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
@@ -271,7 +270,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FinancialAdvisorTester.cs" />
     <Compile Include="IBTestTradingExecutorRunner.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
