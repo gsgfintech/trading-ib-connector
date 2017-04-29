@@ -21,6 +21,7 @@ using Capital.GSG.FX.Utils.Core;
 using Capital.GSG.FX.Data.Core.WebApi;
 using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using static Capital.GSG.FX.Data.Core.FinancialAdvisorsData.CommonFAAllocationProfileNames;
+using Capital.GSG.FX.Data.Core.AccountPortfolio;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -647,6 +648,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             Order order = new Order()
             {
                 Account = account,
+                Broker = Broker.IB,
                 Cross = cross,
                 Side = side,
                 Quantity = quantity,
