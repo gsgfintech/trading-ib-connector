@@ -17,11 +17,12 @@ using static Capital.GSG.FX.Data.Core.ContractData.Cross;
 using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Data.Core.ExecutionData;
 using Capital.GSG.FX.IBData.Service.Connector;
-using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.Utils.Core;
 using System.Linq;
 using IBData;
 using Capital.GSG.FX.IBData;
+using Capital.gsg.FX.IB.TwsService.Connector;
+using Capital.GSG.FX.Monitoring.Server.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -42,10 +43,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static ConcurrentDictionary<int, int> orderRequests = new ConcurrentDictionary<int, int>();
 
-        internal const string MonitorClientId = "7f5f6a33-15ae-4ebc-9898-999c30ec9e46";
-        internal const string MonitorAppKey = "Cb4LvRyGJso7I8KKMmaS5GQu+3+EIfelXT9cToGKZP4=";
+        internal const string ClientId = "d5a07c51-59ff-450b-becb-c5528ba5c889";
+        internal const string AppKey = "O4na814WZvUizvt1+lAXXXd17F+p3B7O3yhxzr//kU4=";
         internal const string MonitorBackendAddress = "https://stratedgeme-monitor-qa-backend.azurewebsites.net";
         internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-qa-backend";
+        internal const string TwsServiceBackendAddress = "https://tryphon.gsg.capital:10202";
+        internal const string TwsServiceBackendAppUri = "https://gsgfintech.com/tws-service-dev";
 
         static void Main(string[] args)
         {
@@ -74,10 +77,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             fxConverter = ConvertConnector.GetConnector(convertServiceEndpoint);
             mdConnector = MDConnector.GetConnector(marketDataServiceEndpoint);
 
-            Do(brokerClientConfig, azureTableConnectionString).Wait();
+            TwsServiceConnector twsServiceConnector = new TwsServiceConnector(TwsServiceBackendAddress, ClientId, AppKey, TwsServiceBackendAppUri);
+
+            Do(brokerClientConfig, azureTableConnectionString, twsServiceConnector).Wait();
         }
 
-        private static async Task Do(TwsClientConfig clientConfig, string azureTableConnectionString)
+        private static async Task Do(TwsClientConfig clientConfig, string azureTableConnectionString, TwsServiceConnector twsServiceConnector)
         {
             try
             {
@@ -89,7 +94,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, fxConverter, mdConnector, ibContracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token);
+                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token);
                 brokerClient.StopComplete += (() => stopCompleteEvent.Set());
                 brokerClient.AlertReceived += (alert) =>
                 {
@@ -139,7 +144,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
-                await PlaceMarketOrders(brokerClient.OrderExecutor);
+                //await PlaceMarketOrders(brokerClient.OrderExecutor);
 
                 //await PlaceStopOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateStopOrders(brokerClient.OrderExecutor);
@@ -155,7 +160,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await TestHistoData(((BrokerClient)brokerClient).HistoricalDataProvider);
                 //TestNews(((BrokerClient)brokerClient).NewsProvider);
 
-                //await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
+                await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
 
                 //await RestartTws((BrokerClient)brokerClient);
 
@@ -279,10 +284,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info("Cancelled all orders");
 
-                if ((await executor.CloseAllPositions(CrossUtils.AllCrosses)) != null)
+                var closePositionsResult = await executor.CloseAllPositions(CrossUtils.AllCrosses);
+                if (closePositionsResult.Success)
                     logger.Info("Closed all positions");
                 else
-                    logger.Error("Failed to close all positions");
+                    logger.Error(closePositionsResult.Message);
             }
             else
                 logger.Error($"Failed to cancel all orders: {result.Message}");
@@ -353,11 +359,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task PlaceMarketOrders(IOrderExecutor orderExecutor)
         {
-            Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
-            Console.WriteLine("MarketOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
-            Thread.Sleep(1000);
+            //Order order1 = await orderExecutor.PlaceMarketOrder(EURUSD, SELL, 20000, DAY, "IBExecutorTester", origin: OrderOrigin.PositionReverse_Open, ct: stopRequestedCts.Token);
+            //Console.WriteLine("MarketOrder1: {0} ({1})", order1 != null ? "SUCCESS" : "FAILED", order1);
+            //Thread.Sleep(1000);
 
-            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, SELL, 20000, DAY, "IBExecutorTester", ct: stopRequestedCts.Token);
+            Order order2 = await orderExecutor.PlaceMarketOrder(EURCHF, SELL, 20000, DAY, "IBExecutorTester", origin: OrderOrigin.PositionClose, ct: stopRequestedCts.Token);
             Console.WriteLine("MarketOrder2: {0} ({1})", order2 != null ? "SUCCESS" : "FAILED", order2);
             Thread.Sleep(1000);
         }

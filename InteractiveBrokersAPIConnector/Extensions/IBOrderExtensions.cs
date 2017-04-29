@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Capital.GSG.FX.Data.Core.OrderData;
+using Capital.GSG.FX.Data.Core.AccountPortfolio;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
 {
@@ -14,7 +15,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
 
             return new IBApi.Order()
             {
-                ClientId = order.ClientID,
+                Account = order.Account,
                 OrderId = order.OrderID,
                 PermId = order.PermanentID,
                 Action = order.Side.ToString(),
@@ -46,8 +47,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
 
             return new Order()
             {
+                Account = ibOrder.Account,
+                Broker = Broker.IB,
                 StopPrice = ibOrder.AuxPrice > 0 ? ibOrder.AuxPrice : (double?)null,
-                ClientID = ibOrder.ClientId,
                 OurRef = ibOrder.OrderRef,
                 LimitPrice = ibOrder.LmtPrice > 0 ? ibOrder.LmtPrice : (double?)null,
                 OrderID = ibOrder.OrderId,

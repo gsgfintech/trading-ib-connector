@@ -35,11 +35,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// Use a sequential ID starting with the ID received at the nextValidId() method</param>
         /// <param name="contract">This class contains attributes used to describe the contract</param>
         /// <param name="order">This structure contains the details of the order</param>
-        public void RequestPlaceOrder(int orderID, Contract contract, Order order, FAGroup faGroup = null, string faAllocationProfileName = null)
+        public void RequestPlaceOrder(int orderID, Contract contract, Order order, string account = null, FAGroup faGroup = null, string faAllocationProfileName = null)
         {
             IBApi.Order ibOrder = order.ToIBOrder();
 
-            if (faGroup != null)
+            if (!string.IsNullOrEmpty(account))
+                ibOrder.Account = account;
+            else if (faGroup != null)
             {
                 ibOrder.FaGroup = faGroup.Name;
                 ibOrder.FaMethod = faGroup.DefaultMethod.ToString();

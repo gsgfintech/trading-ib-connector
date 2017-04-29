@@ -20,6 +20,7 @@ using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Utils.Core;
 using Capital.GSG.FX.Data.Core.WebApi;
 using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
+using static Capital.GSG.FX.Data.Core.FinancialAdvisorsData.CommonFAAllocationProfileNames;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -50,7 +51,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private object nextValidOrderIdRequestedLocker = new object();
 
         // Order queueus
-        private ConcurrentQueue<Order> ordersToPlaceQueue = new ConcurrentQueue<Order>();
+        private ConcurrentQueue<OrderToPlace> ordersToPlaceQueue = new ConcurrentQueue<OrderToPlace>();
         private object ordersToPlaceQueueLocker = new object();
         private List<int> ordersPlaced = new List<int>();
         private ConcurrentQueue<int> ordersToCancelQueue = new ConcurrentQueue<int>();
@@ -360,7 +361,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     newOrder.OrderID = orderId;
                     newOrder.PermanentID = permId;
                     newOrder.ParentOrderID = parentId;
-                    newOrder.ClientID = clientId;
                     newOrder.LastUpdateTime = DateTimeOffset.Now;
 
                     newOrder.Status = status ?? Submitted;
@@ -477,31 +477,32 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         {
                             localCts?.Token.ThrowIfCancellationRequested();
 
-                            Order order;
+                            OrderToPlace order;
                             if (ordersToPlaceQueue.TryDequeue(out order))
                             {
-                                if (!ordersPlaced.Contains(order.OrderID))
+                                if (!ordersPlaced.Contains(order.Order.OrderID))
                                 {
-                                    logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.OrderID}");
+                                    logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.Order.OrderID}");
 
-                                    logger.Info($"Placing order {order.OrderID}: {order}");
-                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.OrderID, GetContract(order.Cross), order, faAllocationProfileName: "SingleTicketAllocation");
+                                    logger.Info($"Placing order {order.Order.OrderID}: {order.Order}");
 
-                                    if (order.Status == PreSubmitted)
+                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.Order.OrderID, GetContract(order.Order.Cross), order.Order, account: order.Account, faGroup: order.FAGroup, faAllocationProfileName: order.FAAllocationProfileName);
+
+                                    if (order.Order.Status == PreSubmitted)
                                     {
-                                        logger.Debug($"Adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
-                                        ordersAwaitingPlaceConfirmation.TryAdd(order.OrderID, DateTime.Now);
+                                        logger.Debug($"Adding order {order.Order.OrderID} to the ordersAwaitingPlaceConfirmation queue");
+                                        ordersAwaitingPlaceConfirmation.TryAdd(order.Order.OrderID, DateTime.Now);
                                     }
                                     else
-                                        logger.Info($"Not adding order {order.OrderID} to the ordersAwaitingPlaceConfirmation queue because it is not in state PreSubmitted ({order.Status})"); // Sometimes when we update an existing order (ie an order that is already in state Submitted) IB doesn't send another "Submitted" status update. Therefore we need to de-activate the ordersAwaitingPlaceConfirmation check in this particular case
+                                        logger.Info($"Not adding order {order.Order.OrderID} to the ordersAwaitingPlaceConfirmation queue because it is not in state PreSubmitted ({order.Order.Status})"); // Sometimes when we update an existing order (ie an order that is already in state Submitted) IB doesn't send another "Submitted" status update. Therefore we need to de-activate the ordersAwaitingPlaceConfirmation check in this particular case
 
-                                    ordersPlaced.Add(order.OrderID);
+                                    ordersPlaced.Add(order.Order.OrderID);
 
                                     // Random delay in between orders
                                     Thread.Sleep((new Random()).Next(500, 1500));
                                 }
                                 else
-                                    logger.Error($"Not trying to place order {order.OrderID} again");
+                                    logger.Error($"Not trying to place order {order.Order.OrderID} again");
                             }
                         }
 
@@ -615,7 +616,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin, string groupId)
+        private async Task<Order> CreateOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin, string groupId, string account = null)
         {
             if (cross == Cross.UNKNOWN)
             {
@@ -645,6 +646,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             Order order = new Order()
             {
+                Account = account,
                 Cross = cross,
                 Side = side,
                 Quantity = quantity,
@@ -786,6 +788,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<Order> PlaceMarketOrder(Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId = null, OrderOrigin origin = OrderOrigin.Unknown, string groupId = null, CancellationToken ct = default(CancellationToken))
         {
+            return await PlaceMarketOrder(null, cross, side, quantity, tif, strategy, parentId, origin, groupId, ct);
+        }
+
+        private async Task<Order> PlaceMarketOrder(string account, Cross cross, OrderSide side, int quantity, TimeInForce tif, string strategy, int? parentId, OrderOrigin origin, string groupId, CancellationToken ct)
+        {
             if (!ibClient.IsConnected())
             {
                 logger.Error("Cannot place MARKET order as the IB client is not connected");
@@ -811,7 +818,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info($"Preparing MARKET order: {side} {quantity} {cross} (TIF: {tif})");
 
             // 1. Prepare the market order
-            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId);
+            Order order = await CreateOrder(cross, side, quantity, tif, strategy, parentId, origin, groupId, account);
 
             if (order != null)
             {
@@ -959,8 +966,30 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info($"Adding order {order.OrderID} to the list");
                 orders.AddOrUpdate(order.OrderID, order, (key, oldValue) => order);
 
+                OrderToPlace orderToPlace = new OrderToPlace(order);
+
+                if (!string.IsNullOrEmpty(order.Account))
+                    orderToPlace.Account = order.Account;
+                else if (brokerClient.IsInstitutionalAccount)
+                {
+                    if (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close)
+                    {
+                        logger.Info($"Will use allocation {DoubleTicketAllocation} for order {order.OrderID} ({order.Origin})");
+                        orderToPlace.FAAllocationProfileName = DoubleTicketAllocation;
+                    }
+                    else
+                    {
+                        logger.Info($"Will use allocation {SingleTicketAllocation} for order {order.OrderID} ({order.Origin})");
+                        orderToPlace.FAAllocationProfileName = SingleTicketAllocation;
+                    }
+                }
+                else
+                {
+                    logger.Info("Not using allocation for order: flag brokerClient.IsInstitutionalAccount isn't raised and no specific account name was specified");
+                }
+
                 logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
-                ordersToPlaceQueue.Enqueue(order);
+                ordersToPlaceQueue.Enqueue(orderToPlace);
 
                 return (true, null, order);
             }
@@ -1127,102 +1156,127 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return new GenericActionResult(true, "Found no active order to cancel");
         }
 
-        public async Task<Dictionary<Cross, double?>> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
+        public async Task<(bool Success, string Message, Dictionary<Tuple<string, Cross>, double?> ClosedPositions)> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
         {
             if (!ibClient.IsConnected())
             {
-                logger.Error("Cannot close any position as the IB client is not connected");
-                return new Dictionary<Cross, double?>();
+                string err = "Cannot close any position as the IB client is not connected";
+                logger.Error(err);
+                return (false, err, null);
             }
 
             if (isTradingConnectionLost)
             {
-                logger.Error($"Cannot close any position because flag {nameof(isTradingConnectionLost)} is raised");
-                return new Dictionary<Cross, double?>();
+                string err = $"Cannot close any position because flag {nameof(isTradingConnectionLost)} is raised";
+                logger.Error(err);
+                return (false, err, null);
             }
 
             // If no custom cancellation token is specified we default to the program-level stop requested token
             if (ct == null)
-                ct = this.stopRequestedCt;
+                ct = stopRequestedCt;
 
-            if (ct.IsCancellationRequested)
+            try
             {
-                logger.Error("Not closing positions: operation cancelled");
-                return null;
-            }
+                ct.ThrowIfCancellationRequested();
+                // 1. Get all open postions
+                var positionResult = await brokerClient.TwsServiceConnector.PositionsConnector.RequestPositions(ct);
 
-            // 1. Get all open postions
-            Dictionary<Cross, double> openPositions = ((IBPositionsExecutor)brokerClient.PositionExecutor).GetAllOpenPositions();
-
-            if (openPositions.IsNullOrEmpty())
-            {
-                logger.Info("No open position. Nothing to close");
-                return new Dictionary<Cross, double?>();
-            }
-            else
-            {
-                openPositions = openPositions.Where(p => crosses.Contains(p.Key)).Where(p => p.Value != 0).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-                if (openPositions.IsNullOrEmpty())
+                if (positionResult.Success)
                 {
-                    logger.Info("No open position. Nothing to close");
-                    return new Dictionary<Cross, double?>();
-                }
-
-                // 2. Place market orders to close all open positions
-                Dictionary<Cross, double?> retVal = new Dictionary<Cross, double?>();
-                List<int> closingOrders = new List<int>();
-
-                foreach (var pos in openPositions)
-                {
-                    logger.Info($"Closing position: {pos.Value} {pos.Key}");
-
-                    OrderSide side = pos.Value > 0 ? SELL : BUY;
-
-                    Order order = await PlaceMarketOrder(pos.Key, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", origin: origin, ct: ct);
-
-                    if (order != null)
+                    if (!positionResult.Positions.IsNullOrEmpty())
                     {
-                        logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {order})");
-                        closingOrders.Add(order.OrderID);
+                        Dictionary<Tuple<string, Cross>, double> openPositions = positionResult.Positions.Where(p => crosses.Contains(p.Cross) && p.PositionQuantity != 0).ToDictionary(p => new Tuple<string, Cross>(p.Account, p.Cross), p => p.PositionQuantity);
+
+                        if (openPositions.IsNullOrEmpty())
+                        {
+                            string msg = "No open position: nothing to close";
+                            logger.Info(msg);
+                            return (true, msg, new Dictionary<Tuple<string, Cross>, double?>());
+                        }
+                        else
+                        {
+                            // 2. Place market orders to close all open positions
+                            Dictionary<Tuple<string, Cross>, double?> retVal = new Dictionary<Tuple<string, Cross>, double?>();
+                            List<int> closingOrders = new List<int>();
+
+                            foreach (var pos in openPositions)
+                            {
+                                logger.Info($"Closing position: {pos.Value} {pos.Key}");
+
+                                OrderSide side = pos.Value > 0 ? SELL : BUY;
+
+                                Order order = await PlaceMarketOrder(pos.Key.Item1, pos.Key.Item2, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", null, origin, null, ct);
+
+                                if (order != null)
+                                {
+                                    logger.Debug($"Successfully closed position: {pos.Value} {pos.Key} (order {order})");
+                                    closingOrders.Add(order.OrderID);
+                                }
+                                else
+                                    logger.Error($"Failed to close position: {pos.Value} {pos.Key}");
+
+                                retVal.Add(pos.Key, null);
+                            }
+
+                            CancellationTokenSource cts = new CancellationTokenSource();
+                            cts.CancelAfter(TimeSpan.FromMinutes(1));
+
+                            await Task.Run(() =>
+                            {
+                                while (closingOrders.Count > 0)
+                                {
+                                    List<int> filledOrders = new List<int>();
+
+                                    foreach (var orderId in closingOrders)
+                                    {
+                                        Order order;
+                                        if (orders.TryGetValue(orderId, out order) && order.Status == Filled)
+                                        {
+                                            retVal[new Tuple<string, Cross>(order.Account, order.Cross)] = order.FillPrice;
+                                            filledOrders.Add(orderId);
+                                        }
+                                    }
+
+                                    if (filledOrders.Count > 0)
+                                    {
+                                        foreach (var orderId in filledOrders)
+                                            closingOrders.Remove(orderId);
+                                    }
+
+                                    if (filledOrders.Count > 0)
+                                        Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+                                }
+                            }, cts.Token);
+
+                            return (true, $"Successfully closed positions for {string.Join(", ", crosses)}", retVal);
+                        }
                     }
                     else
-                        logger.Error($"Failed to close position: {pos.Value} {pos.Key}");
-
-                    retVal.Add(pos.Key, null);
-                }
-
-                CancellationTokenSource cts = new CancellationTokenSource();
-                cts.CancelAfter(TimeSpan.FromMinutes(1));
-
-                await Task.Run(() =>
-                {
-                    while (closingOrders.Count > 0)
                     {
-                        List<int> filledOrders = new List<int>();
-
-                        foreach (var orderId in closingOrders)
-                        {
-                            Order order;
-                            if (orders.TryGetValue(orderId, out order) && order.Status == Filled)
-                            {
-                                retVal[order.Cross] = order.FillPrice;
-                                filledOrders.Add(orderId);
-                            }
-                        }
-
-                        if (filledOrders.Count > 0)
-                        {
-                            foreach (var orderId in filledOrders)
-                                closingOrders.Remove(orderId);
-                        }
-
-                        if (filledOrders.Count > 0)
-                            Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+                        string msg = "No open position received from TWS service: nothing to close";
+                        logger.Info(msg);
+                        return (true, msg, new Dictionary<Tuple<string, Cross>, double?>());
                     }
-                }, cts.Token);
-
-                return retVal;
+                }
+                else
+                {
+                    string err = $"Failed to request positions from TWS service: {positionResult.Message}";
+                    logger.Error(err);
+                    return (false, err, null);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                string err = "Not closing positions: operation cancelled";
+                logger.Error(err);
+                return (false, err, null);
+            }
+            catch (Exception ex)
+            {
+                string err = "Failed to close positions";
+                logger.Error(err, ex);
+                return (false, $"{err}: {ex.Message}", null);
             }
         }
 
@@ -1464,6 +1518,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             public int GetHashCode(Contract obj)
             {
                 return obj.Cross.GetHashCode();
+            }
+        }
+
+        private class OrderToPlace
+        {
+            public Order Order { get; private set; }
+
+            public string Account { get; set; }
+            public string FAAllocationProfileName { get; set; }
+            public FAGroup FAGroup { get; set; }
+
+            public OrderToPlace(Order order)
+            {
+                Order = order;
             }
         }
     }

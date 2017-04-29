@@ -24,7 +24,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                     Exchange = ibExecution.Exchange,
                     Price = ibExecution.AvgPrice,
                     PermanentID = ibExecution.PermId,
-                    Quantity = ibExecution.CumQty,
+                    Quantity = ibExecution.Shares,
                     ClientOrderRef = ibExecution.OrderRef
                 };
 

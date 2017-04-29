@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.FXConverter;
-using Capital.GSG.FX.IBData.Service.Connector;
 using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.Utils.Core;
 using Capital.GSG.FX.Data.Core.OrderData;
@@ -14,6 +13,7 @@ using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Data.Core.ContractData;
 using Capital.GSG.FX.IBData;
 using IBData;
+using Capital.gsg.FX.IB.TwsService.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -51,13 +51,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private IBOrderExecutor orderExecutor;
         public IOrderExecutor OrderExecutor { get { return orderExecutor; } }
 
-        private IBPositionsExecutor positionExecutor;
-        public IPositionExecutor PositionExecutor { get { return positionExecutor; } }
-
         private IBTradesExecutor tradesExecutor;
         public ITradesExecutor TradesExecutor { get { return tradesExecutor; } }
 
         private readonly string monitoringEndpoint;
+
+        public TwsServiceConnector TwsServiceConnector { get; private set; }
 
         private SystemStatus Status { get; set; }
         public event Action<SystemStatus> StatusUpdated;
@@ -70,7 +69,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt)
+        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, TwsServiceConnector twsServiceConnector, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt)
         {
             brokerClientType = clientType;
             clientName = clientConfig.Name;
@@ -78,6 +77,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             this.monitoringEndpoint = monitoringEndpoint;
 
             this.stopRequestedCt = stopRequestedCt;
+
+            TwsServiceConnector = twsServiceConnector;
 
             Status = new SystemStatus(clientName);
 
@@ -338,7 +339,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             MarketDataProvider?.Dispose();
             OrderExecutor?.Dispose();
-            PositionExecutor?.Dispose();
             TradesExecutor?.Dispose();
 
             ibClient?.Dispose();

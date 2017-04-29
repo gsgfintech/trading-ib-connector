@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
+    [Obsolete("Do not use this class anymore as it doesn't support institutional accounts. Use the TWS service instead")]
     public class IBPositionsExecutor : IPositionExecutor
     {
         private static ILog logger = LogManager.GetLogger(nameof(IBPositionsExecutor));
@@ -29,7 +30,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public event Action<Position> PositionUpdated;
 
+#pragma warning disable CS0067
         public event Action<Account> AccountUpdated;
+#pragma warning restore CS0067
 
         private string accountSubscribed = null;
 
@@ -1025,7 +1028,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private bool isRequestingAccountSummary;
         private object isRequestingAccountSummaryLocker = new object();
         private int accountSummaryRequestId;
+#pragma warning disable CS0414
         private Account summarizedAccount = null;
+#pragma warning restore CS0414
 
         public async Task<(bool Success, string Message)> RequestAccountsSummary()
         {
