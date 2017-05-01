@@ -22,6 +22,7 @@ using Capital.GSG.FX.Data.Core.WebApi;
 using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using static Capital.GSG.FX.Data.Core.FinancialAdvisorsData.CommonFAAllocationProfileNames;
 using Capital.GSG.FX.Data.Core.AccountPortfolio;
+using Newtonsoft.Json;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -724,7 +725,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                var result = PlaceOrder(order);
+                var result = await PlaceOrder(order);
 
                 if (!result.Success)
                     logger.Error(result.Message);
@@ -774,7 +775,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                var result = PlaceOrder(order);
+                var result = await PlaceOrder(order);
 
                 if (!result.Success)
                     logger.Error(result.Message);
@@ -829,7 +830,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                var result = PlaceOrder(order);
+                var result = await PlaceOrder(order);
 
                 if (!result.Success)
                     logger.Error(result.Message);
@@ -880,7 +881,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                var result = PlaceOrder(order);
+                var result = await PlaceOrder(order);
 
                 if (!result.Success)
                     logger.Error(result.Message);
@@ -931,7 +932,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 // 2. Add the order to the placement queue
                 logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
-                var result = PlaceOrder(order);
+                var result = await PlaceOrder(order);
 
                 if (!result.Success)
                     logger.Error(result.Message);
@@ -945,8 +946,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        private (bool Success, string Message, Order Order) PlaceOrder(Order order)
+        private async Task<(bool Success, string Message, Order Order)> PlaceOrder(Order order)
         {
+            var faConfiguration = await RefreshFAConfiguration(); // useful to stamp up to date allocation information on the order
+
             lock (ordersToPlaceQueueLocker)
             {
                 if (order.OrderID < 1)
@@ -971,18 +974,40 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 OrderToPlace orderToPlace = new OrderToPlace(order);
 
                 if (!string.IsNullOrEmpty(order.Account))
+                {
                     orderToPlace.Account = order.Account;
+
+                    orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(new { SingleAccount = order.Account });
+                }
                 else if (brokerClient.IsInstitutionalAccount)
                 {
                     if (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close)
                     {
                         logger.Info($"Will use allocation {DoubleTicketAllocation} for order {order.OrderID} ({order.Origin})");
                         orderToPlace.FAAllocationProfileName = DoubleTicketAllocation;
+
+                        if (faConfiguration != null && !faConfiguration.AllocationProfiles.IsNullOrEmpty())
+                        {
+                            FAAllocationProfile allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == DoubleTicketAllocation);
+
+                            orderToPlace.Order.AllocationInfo = (allocProfile != null) ? JsonConvert.SerializeObject(allocProfile) : $"{DoubleTicketAllocation} (unknown details)";
+                        }
+                        else
+                            orderToPlace.Order.AllocationInfo = $"{DoubleTicketAllocation} (unknown details)";
                     }
                     else
                     {
                         logger.Info($"Will use allocation {SingleTicketAllocation} for order {order.OrderID} ({order.Origin})");
                         orderToPlace.FAAllocationProfileName = SingleTicketAllocation;
+
+                        if (faConfiguration != null && !faConfiguration.AllocationProfiles.IsNullOrEmpty())
+                        {
+                            FAAllocationProfile allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == SingleTicketAllocation);
+
+                            orderToPlace.Order.AllocationInfo = (allocProfile != null) ? JsonConvert.SerializeObject(allocProfile) : $"{SingleTicketAllocation} (unknown details)";
+                        }
+                        else
+                            orderToPlace.Order.AllocationInfo = $"{SingleTicketAllocation} (unknown details)";
                     }
                 }
                 else
@@ -1323,7 +1348,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             if (newQuantity.HasValue && newQuantity.Value > 0)
                                 currentOrder.Quantity = newQuantity.Value;
 
-                            var limitUpdateResult = PlaceOrder(currentOrder);
+                            var limitUpdateResult = await PlaceOrder(currentOrder);
 
                             if (limitUpdateResult.Success)
                             {
@@ -1355,7 +1380,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             if (newQuantity.HasValue && newQuantity.Value > 0)
                                 currentOrder.Quantity = newQuantity.Value;
 
-                            var stopUpdateResult = PlaceOrder(currentOrder);
+                            var stopUpdateResult = await PlaceOrder(currentOrder);
 
                             if (stopUpdateResult.Success)
                             {
@@ -1484,6 +1509,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public bool RequestTradingConnectionStatus()
         {
             return !isTradingConnectionLost;
+        }
+
+        private async Task<FAConfiguration> RefreshFAConfiguration()
+        {
+            var result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(stopRequestedCt);
+
+            if (result.Success)
+                return result.FAConfiguration;
+            else
+            {
+                logger.Error($"Failed to refresh FA configuration: { result.Message}");
+                return null;
+            }
         }
 
         public void Dispose()

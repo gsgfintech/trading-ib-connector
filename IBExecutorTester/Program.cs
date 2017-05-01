@@ -47,8 +47,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         internal const string AppKey = "O4na814WZvUizvt1+lAXXXd17F+p3B7O3yhxzr//kU4=";
         internal const string MonitorBackendAddress = "https://stratedgeme-monitor-qa-backend.azurewebsites.net";
         internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-qa-backend";
-        internal const string TwsServiceBackendAddress = "https://tryphon.gsg.capital:10202";
-        internal const string TwsServiceBackendAppUri = "https://gsgfintech.com/tws-service-dev";
+        internal const string TwsServiceBackendAddress = "https://gsg-srv-3.gsg.capital:10202";
+        internal const string TwsServiceBackendAppUri = "https://gsgfintech.com/tws-service-qa";
 
         static void Main(string[] args)
         {
@@ -56,10 +56,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             TwsClientConfig brokerClientConfig = new TwsClientConfig()
             {
-                ClientNumber = 7,
-                Host = "tryphon.gsg.capital",
-                Name = "IB_MDClient_Test",
-                Port = 7498
+                ClientNumber = 4,
+                Host = "gsg-srv-3.gsg.capital",
+                Name = "TWS_GSG_Paper_Dev_MD",
+                Port = 7497
             };
 
             string monitoringEndpoint = "http://localhost:51468/";
@@ -144,7 +144,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
-                //await PlaceMarketOrders(brokerClient.OrderExecutor);
+                await PlaceMarketOrders(brokerClient.OrderExecutor);
 
                 //await PlaceStopOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateStopOrders(brokerClient.OrderExecutor);
@@ -160,7 +160,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await TestHistoData(((BrokerClient)brokerClient).HistoricalDataProvider);
                 //TestNews(((BrokerClient)brokerClient).NewsProvider);
 
-                await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
+                //await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
 
                 //await RestartTws((BrokerClient)brokerClient);
 
