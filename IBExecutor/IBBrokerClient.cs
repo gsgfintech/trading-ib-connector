@@ -101,17 +101,22 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void ManagedAccountsListReceived(string accountsStr)
         {
-            var accounts = accountsStr.Split(',').Where(a => !string.IsNullOrEmpty(a));
+            if (!string.IsNullOrEmpty(accountsStr))
+            {
+                var accounts = accountsStr.Split(',').Where(a => !string.IsNullOrEmpty(a));
 
-            if (accounts.Count() > 1)
-            {
-                logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
-                IsInstitutionalAccount = true;
-            }
-            else
-            {
-                logger.Info($"The user connected to this TWS only manages one account ({accountsStr}): this is an individual account");
-                IsInstitutionalAccount = false;
+                if (accounts.Count() > 1)
+                {
+                    logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
+                    IsInstitutionalAccount = true;
+                }
+                else
+                {
+                    logger.Info($"The user connected to this TWS only manages one account ({accountsStr}): this is an individual account");
+                    IsInstitutionalAccount = false;
+                }
+
+                ibClient.ResponseManager.ManagedAccountsListReceived -= ManagedAccountsListReceived; // We only need to set this once
             }
         }
 
