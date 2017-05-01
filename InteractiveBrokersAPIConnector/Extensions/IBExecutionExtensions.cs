@@ -1,4 +1,5 @@
-﻿using Capital.GSG.FX.Data.Core.ContractData;
+﻿using Capital.GSG.FX.Data.Core.AccountPortfolio;
+using Capital.GSG.FX.Data.Core.ContractData;
 using Capital.GSG.FX.Data.Core.ExecutionData;
 using System;
 using System.Globalization;
@@ -16,10 +17,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
             {
                 Execution apiExecution = new Execution()
                 {
+                    Broker = Broker.IB,
                     OrderId = ibExecution.OrderId,
                     ClientId = ibExecution.ClientId,
                     Cross = cross,
-                    Id = ibExecution.ExecId,
+                    Id = ibExecution.ExecId.Replace('+', '-'),
                     AccountNumber = ibExecution.AcctNumber,
                     Exchange = ibExecution.Exchange,
                     Price = ibExecution.AvgPrice,

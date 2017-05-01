@@ -26,7 +26,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public List<Execution> Trades { get; } = new List<Execution>();
 
         private ConcurrentDictionary<string, TempExecution> tmpExecutions = new ConcurrentDictionary<string, TempExecution>();
-        private ConcurrentDictionary<int, double> partialExecutions = new ConcurrentDictionary<int, double>();
+        //private ConcurrentDictionary<int, double> partialExecutions = new ConcurrentDictionary<int, double>();
 
         public event Action<Execution> TradeReceived;
 
@@ -93,7 +93,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     execution.RealizedPnlPips = CrossUtils.ConvertToFractionalPips(execution.RealizedPnL.Value / (double)execution.Quantity, execution.Cross);
 
-                    DateTimeOffset? previousTrade = GetPreviousExecutionTimeForCross(execution.Cross);
+                    DateTimeOffset? previousTrade = GetPreviousExecutionTimeForCrossAndOppositeSide(execution.Cross, ExecutionSide.SOLD);
                     if (previousTrade.HasValue)
                         execution.TradeDuration = execution.ExecutionTime.Subtract(previousTrade.Value).ToString();
                 }
@@ -116,9 +116,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             execution.OrderGroupId = order?.GroupId;
         }
 
-        private DateTimeOffset? GetPreviousExecutionTimeForCross(Cross cross)
+        private DateTimeOffset? GetPreviousExecutionTimeForCrossAndOppositeSide(Cross cross, ExecutionSide side)
         {
-            return Trades?.LastOrDefault(exec => exec.Cross == cross)?.ExecutionTime;
+            return Trades?.LastOrDefault(exec => exec.Cross == cross && exec.Side != side)?.ExecutionTime;
         }
 
         private async void ResponseManager_ExecutionDetailsReceived(int reqId, Contract contract, Execution execution)
@@ -137,18 +137,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             TempExecution tmpExecution = tmpExecutions.GetOrAdd(execution.Id, new TempExecution() { Execution = execution });
 
-            double newCumulativeQuantity = execution.Quantity;
+            //double newCumulativeQuantity = execution.Quantity;
 
-            double previousCumulativeQuantity;
-            if (partialExecutions.TryGetValue(execution.OrderId, out previousCumulativeQuantity))
-            {
-                execution.Quantity -= previousCumulativeQuantity; // IB sends execution details with cumulative quantities, which override any quantity previously executed already
+            //double previousCumulativeQuantity;
+            //if (partialExecutions.TryGetValue(execution.OrderId, out previousCumulativeQuantity))
+            //{
+            //    execution.Quantity -= previousCumulativeQuantity; // IB sends execution details with cumulative quantities, which override any quantity previously executed already
 
-                logger.Info($"Received an additional execution for order {execution.OrderId}. The previous execution(s) were therefore partial. The cumulative quantity is {newCumulativeQuantity} and this execution's quantity is {execution.Quantity}");
-            }
+            //    logger.Info($"Received an additional execution for order {execution.OrderId}. The previous execution(s) were therefore partial. The cumulative quantity is {newCumulativeQuantity} and this execution's quantity is {execution.Quantity}");
+            //}
 
-            // Keep track of the cumulative quantity already executed for that order
-            partialExecutions.AddOrUpdate(execution.OrderId, newCumulativeQuantity, (key, oldVal) => newCumulativeQuantity);
+            //// Keep track of the cumulative quantity already executed for that order
+            //partialExecutions.AddOrUpdate(execution.OrderId, newCumulativeQuantity, (key, oldVal) => newCumulativeQuantity);
 
             if (tmpExecution.CommissionReport != null) // ready to send out
             {
