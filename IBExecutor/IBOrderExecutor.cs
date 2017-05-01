@@ -1515,6 +1515,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             var result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(stopRequestedCt);
 
+            if (!result.Success && result.Message.Contains("another request is already in progress"))
+            {
+                Task.Delay(TimeSpan.FromSeconds(1.5)).Wait();
+                result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(stopRequestedCt);
+            }
+
             if (result.Success)
                 return result.FAConfiguration;
             else
