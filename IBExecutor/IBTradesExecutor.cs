@@ -59,7 +59,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private async void ResponseManager_CommissionReportReceived(CommissionReport report)
         {
-            logger.Debug($"Received commission report for trade {report.ExecutionID}");
+            logger.Info($"Received commission report for trade {report.ExecutionID}");
 
             TempExecution tmpExecution = tmpExecutions.GetOrAdd(report.ExecutionID, new TempExecution() { CommissionReport = report });
 
@@ -93,7 +93,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     execution.RealizedPnlPips = CrossUtils.ConvertToFractionalPips(execution.RealizedPnL.Value / (double)execution.Quantity, execution.Cross);
 
-                    DateTimeOffset? previousTrade = GetPreviousExecutionTimeForCrossAndOppositeSide(execution.Cross, ExecutionSide.SOLD);
+                    DateTimeOffset? previousTrade = GetPreviousExecutionTimeForCrossAndOppositeSide(execution.Cross, execution.Side);
                     if (previousTrade.HasValue)
                         execution.TradeDuration = execution.ExecutionTime.Subtract(previousTrade.Value).ToString();
                 }
@@ -206,6 +206,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             public CommissionReport CommissionReport { get; set; } = null;
         }
 
+        [Obsolete("Doesn't work with trades done on the institutional account")]
         private class PartialExecution
         {
             public int CumulativeQuantity { get; set; }

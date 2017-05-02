@@ -16,7 +16,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
             {
                 CommissionReport comReport = new CommissionReport()
                 {
-                    ExecutionID = ibComReport.ExecId,
+                    ExecutionID = ibComReport.ExecId.Replace('+', '-'),
                     Commission = ibComReport.Commission,
                     Currency = CurrencyUtils.GetFromStr(ibComReport.Currency),
                     RealizedPnL = ibComReport.RealizedPNL > -1e9 && ibComReport.RealizedPNL < 1e9 ? ibComReport.RealizedPNL : (double?)null, // sometimes we receive Double.Max or Double.Min from IB. No point to keep this
