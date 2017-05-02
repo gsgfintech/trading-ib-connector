@@ -5,7 +5,7 @@
     <AssemblyName>Net.Teirlinck.FX.IBAPIConnector</AssemblyName>
     <RootNamespace>Net.Teirlinck.FX.InteractiveBrokersAPI</RootNamespace>
     <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
-    <Version>6.1.4</Version>
+    <Version>6.1.5</Version>
     <Company>GSG Limited</Company>
     <Product>Capital.GSG.FX.IBAPIConnector</Product>
     <PackageId>Capital.GSG.FX.IBAPIConnector</PackageId>

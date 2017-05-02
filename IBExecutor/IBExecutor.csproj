@@ -4,7 +4,7 @@
     <TargetFramework>net46</TargetFramework>
     <AssemblyName>Net.Teirlinck.FX.InteractiveBrokersAPI.Executor</AssemblyName>
     <RootNamespace>Net.Teirlinck.FX.InteractiveBrokersAPI.Executor</RootNamespace>
-    <Version>6.1.4</Version>
+    <Version>6.1.5</Version>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Authors>GSG Limited</Authors>
     <Company>GSG Limited</Company>

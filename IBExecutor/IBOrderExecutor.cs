@@ -1513,12 +1513,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private async Task<FAConfiguration> RefreshFAConfiguration()
         {
-            var result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(stopRequestedCt);
+            CancellationTokenSource cts = new CancellationTokenSource();
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+            var result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
 
             if (!result.Success && result.Message.Contains("another request is already in progress"))
             {
                 Task.Delay(TimeSpan.FromSeconds(1.5)).Wait();
-                result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(stopRequestedCt);
+                result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
             }
 
             if (result.Success)
