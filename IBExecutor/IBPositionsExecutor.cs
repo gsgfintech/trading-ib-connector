@@ -118,15 +118,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private double? ConvertToUsd(Cross cross, double? pnl)
         {
-            if (pnl.HasValue && pnl.Value != 0 && CrossUtils.GetQuotedCurrency(cross) != Currency.USD)
-            {
-                Task<double?> t = fxConverter.Convert(pnl.Value, CrossUtils.GetQuotedCurrency(cross), Currency.USD, stopRequestedCt);
+            //if (pnl.HasValue && pnl.Value != 0 && CrossUtils.GetQuotedCurrency(cross) != Currency.USD)
+            //{
+            //    Task<double?> t = fxConverter.Convert(pnl.Value, CrossUtils.GetQuotedCurrency(cross), Currency.USD, stopRequestedCt);
 
-                t.Wait();
+            //    t.Wait();
 
-                if (t.IsCompleted)
-                    return t.Result;
-            }
+            //    if (t.IsCompleted)
+            //        return t.Result;
+            //}
 
             return null;
         }

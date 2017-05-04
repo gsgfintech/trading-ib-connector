@@ -4,7 +4,6 @@ using System.Threading;
 using log4net;
 using System.Collections.Generic;
 using System.Linq;
-using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.Utils.Core;
@@ -14,6 +13,7 @@ using Capital.GSG.FX.Data.Core.ContractData;
 using Capital.GSG.FX.IBData;
 using IBData;
 using Capital.gsg.FX.IB.TwsService.Connector;
+using MarketDataService.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {

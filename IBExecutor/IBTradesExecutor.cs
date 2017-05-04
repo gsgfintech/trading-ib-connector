@@ -76,7 +76,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (execution.CommissionCcy.Value == Currency.USD)
                         execution.CommissionUsd = execution.Commission.Value;
                     else
-                        execution.CommissionUsd = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
+                    {
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                        var convertResult = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, cts.Token);
+
+                        if (convertResult.Success)
+                            execution.CommissionUsd = convertResult.Converted;
+                    }
 
                     logger.Debug($"Computed USD commission for trade {execution.Id}: {execution.CommissionUsd} USD");
                 }
@@ -87,7 +95,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (CrossUtils.GetQuotedCurrency(execution.Cross) == Currency.USD)
                         execution.RealizedPnlUsd = execution.RealizedPnL;
                     else
-                        execution.RealizedPnlUsd = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
+                    {
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                        var convertResult = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, cts.Token);
+
+                        if (convertResult.Success)
+                            execution.RealizedPnlUsd = convertResult.Converted;
+                    }
 
                     logger.Debug($"Computed USD PnL for trade {execution.Id}: {execution.RealizedPnlUsd} USD");
 
@@ -161,7 +177,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (execution.CommissionCcy.Value == Currency.USD)
                         execution.CommissionUsd = execution.Commission.Value;
                     else
-                        execution.CommissionUsd = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, stopRequestedCt);
+                    {
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                        var convertResult = await fxConverter.Convert(execution.Commission.Value, execution.CommissionCcy.Value, Currency.USD, cts.Token);
+
+                        if (convertResult.Success)
+                            execution.CommissionUsd = convertResult.Converted;
+                    }
 
                     logger.Debug($"Computed USD commission for trade {execution.Id}: {execution.CommissionUsd} USD");
                 }
@@ -174,7 +198,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     else if (CrossUtils.GetBaseCurrency(execution.Cross) == Currency.USD)
                         execution.RealizedPnlUsd = 1 / execution.RealizedPnL;
                     else
-                        execution.RealizedPnlUsd = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, stopRequestedCt);
+                    {
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                        var convertResult = await fxConverter.Convert(execution.RealizedPnL.Value, CrossUtils.GetQuotedCurrency(execution.Cross), Currency.USD, cts.Token);
+
+                        if (convertResult.Success)
+                            execution.RealizedPnlUsd = convertResult.Converted;
+                    }
 
                     logger.Debug($"Computed USD PnL for trade {execution.Id}: {execution.RealizedPnlUsd} USD");
                 }

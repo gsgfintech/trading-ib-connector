@@ -5,9 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.FXConverter;
-using Capital.GSG.FX.FXConverterServiceConnector;
 using Capital.GSG.FX.Data.Core.OrderData;
 using static Capital.GSG.FX.Data.Core.OrderData.OrderSide;
 using static Capital.GSG.FX.Data.Core.OrderData.TimeInForce;
@@ -23,6 +21,7 @@ using IBData;
 using Capital.GSG.FX.IBData;
 using Capital.gsg.FX.IB.TwsService.Connector;
 using Capital.GSG.FX.Monitoring.Server.Connector;
+using MarketDataService.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -47,6 +46,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         internal const string AppKey = "O4na814WZvUizvt1+lAXXXd17F+p3B7O3yhxzr//kU4=";
         internal const string MonitorBackendAddress = "https://stratedgeme-monitor-qa-backend.azurewebsites.net";
         internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-qa-backend";
+        internal const string MarketDataServiceAddress = "https://tryphon.gsg.capital:10204";
+        internal const string MarketDataServiceAppUri = "https://gsgfintech.com/market-data-service";
         internal const string TwsServiceBackendAddress = "https://gsg-srv-3.gsg.capital:10202";
         internal const string TwsServiceBackendAppUri = "https://gsgfintech.com/tws-service-qa";
 
@@ -63,19 +64,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             };
 
             string monitoringEndpoint = "http://localhost:51468/";
-            string convertServiceEndpoint = "https://tryphon.gsg.capital:6580";
-            string marketDataServiceEndpoint = "https://tryphon.gsg.capital:6581";
             string azureTableConnectionString = "UseDevelopmentStorage=true;";
 
             logger.Info("Starting service IBExecutorTester");
 
             logger.Debug($"BrokerClientConfigId: {brokerClientConfig.Name}");
             logger.Debug($"MonitoringEndpoint: {monitoringEndpoint}");
-            logger.Debug($"ConvertServiceEndpoint: {convertServiceEndpoint}");
-            logger.Debug($"MDConnector: {marketDataServiceEndpoint}");
 
-            fxConverter = ConvertConnector.GetConnector(convertServiceEndpoint);
-            mdConnector = MDConnector.GetConnector(marketDataServiceEndpoint);
+            fxConverter = new ConvertConnector(MarketDataServiceAddress, ClientId, AppKey, MarketDataServiceAppUri);
+            mdConnector = new MDConnector(MarketDataServiceAddress, ClientId, AppKey, MarketDataServiceAppUri);
 
             TwsServiceConnector twsServiceConnector = new TwsServiceConnector(TwsServiceBackendAddress, ClientId, AppKey, TwsServiceBackendAppUri);
 

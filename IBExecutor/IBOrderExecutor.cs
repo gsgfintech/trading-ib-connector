@@ -11,7 +11,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using Capital.GSG.FX.MarketDataService.Connector;
 using Capital.GSG.FX.Data.Core.MarketData;
 using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.FXConverter;
@@ -23,6 +22,7 @@ using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using static Capital.GSG.FX.Data.Core.FinancialAdvisorsData.CommonFAAllocationProfileNames;
 using Capital.GSG.FX.Data.Core.AccountPortfolio;
 using Newtonsoft.Json;
+using MarketDataService.Connector;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -592,8 +592,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return quantity;
             else
             {
-                var usdQuantity = await fxConverter.Convert(quantity, CrossUtils.GetQuotedCurrency(cross), USD, stopRequestedCt);
-                return usdQuantity.HasValue ? (int)Math.Floor(usdQuantity.Value) : (int?)null;
+                var convertResult = await fxConverter.Convert(quantity, CrossUtils.GetQuotedCurrency(cross), USD, stopRequestedCt);
+
+                if (convertResult.Success && convertResult.Converted.HasValue)
+                    return (int)Math.Floor(convertResult.Converted.Value);
+                else
+                {
+                    logger.Error($"Conversion failed: {convertResult.Message}");
+                    return null;
+                }
             }
         }
 
@@ -644,7 +651,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return null;
             }
 
-            RTBar latest = await mdConnector.GetLatest(cross, stopRequestedCt);
+            var mdResult = await mdConnector.GetLatest(cross, stopRequestedCt);
+
+            if (!mdResult.Success)
+                logger.Error($"Conversion failed: {mdResult.Message}");
 
             Order order = new Order()
             {
@@ -656,9 +666,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 TimeInForce = tif,
                 OurRef = $"Strategy:{strategy}|Client:{ibClient.ClientName}",
                 ParentOrderID = parentId ?? 0,
-                LastAsk = latest?.Ask.Close,
-                LastBid = latest?.Bid.Close,
-                LastMid = latest?.Mid.Close,
+                LastAsk = mdResult.RTBar?.Ask.Close,
+                LastBid = mdResult.RTBar?.Bid.Close,
+                LastMid = mdResult.RTBar?.Mid.Close,
                 Origin = origin,
                 GroupId = groupId,
                 Status = PreSubmitted,
