@@ -28,7 +28,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly string clientName;
         private readonly CancellationToken stopRequestedCt;
 
-        public bool IsInstitutionalAccount { get; private set; }
+        private bool isInstitutionalAccount;
+        private object isInstitutionalAccountLocker = new object();
+        public bool IsInstitutionalAccount { get { return isInstitutionalAccount; } }
 
         private readonly IBrokerClientType brokerClientType;
         public IBrokerClientType BrokerClientType { get { return brokerClientType; } }
@@ -108,15 +110,28 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 if (accounts.Count() > 1)
                 {
                     logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
-                    IsInstitutionalAccount = true;
+                    SetIsInstitutionalAccountFlag(true);
                 }
                 else
                 {
                     logger.Info($"The user connected to this TWS only manages one account ({accountsStr}): this is an individual account");
-                    IsInstitutionalAccount = false;
+                    SetIsInstitutionalAccountFlag(false);
                 }
 
                 ibClient.ResponseManager.ManagedAccountsListReceived -= ManagedAccountsListReceived; // We only need to set this once
+            }
+        }
+
+        private void SetIsInstitutionalAccountFlag(bool value)
+        {
+            if (isInstitutionalAccount == value)
+                return;
+
+            logger.Info($"Setting flag {nameof(isInstitutionalAccount)} to {isInstitutionalAccount}");
+
+            lock (isInstitutionalAccountLocker)
+            {
+                isInstitutionalAccount = value;
             }
         }
 
