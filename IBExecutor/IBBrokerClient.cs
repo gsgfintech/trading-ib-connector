@@ -152,7 +152,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 historicalDataProvider = new IBHistoricalDataProvider(ibClient, ibContracts, stopRequestedCt);
                 marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, logTicks, stopRequestedCt);
                 newsProvider = new IBNewsProvider(ibClient, stopRequestedCt);
-                newsBulletinProvider = new IBNewsBulletinProvider(ibClient, stopRequestedCt);
+                newsBulletinProvider = new IBNewsBulletinProvider(ibClient);
             }
         }
 

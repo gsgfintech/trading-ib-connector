@@ -1,25 +1,22 @@
 ﻿using System;
-using log4net;
-using System.Threading;
 using Capital.GSG.FX.Data.Core.NewsBulletinData;
 using Capital.GSG.FX.Trading.Executor.Core;
+using Microsoft.Extensions.Logging;
+using Capital.GSG.FX.Utils.Core.Logging;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
     public class IBNewsBulletinProvider : INewsBulletinProvider
     {
-        private static ILog logger = LogManager.GetLogger(nameof(IBNewsBulletinProvider));
+        private readonly ILogger logger = GSGLoggerFactory.Instance.CreateLogger<IBNewsBulletinProvider>();
 
         private readonly IBClient ibClient;
 
-        private readonly CancellationToken stopRequestedCt;
-
         public event Action<NewsBulletin> NewBulletinReceived;
 
-        public IBNewsBulletinProvider(IBClient ibClient, CancellationToken stopRequestedCt)
+        public IBNewsBulletinProvider(IBClient ibClient)
         {
             this.ibClient = ibClient;
-            this.stopRequestedCt = stopRequestedCt;
 
             this.ibClient.ResponseManager.NewsBulletinReceived += NewsBulletinReceived;
 
