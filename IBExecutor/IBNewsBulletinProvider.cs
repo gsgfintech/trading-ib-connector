@@ -20,6 +20,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.ibClient.ResponseManager.NewsBulletinReceived += NewsBulletinReceived;
 
+            this.ibClient.RequestManager.NewsBulletinRequestManager.RequestNewsBulletins(false);
+
             this.ibClient.IBConnectionEstablished += () =>
             {
                 logger.Info("IB client (re)connected. Will resubcribe to news bulletin updates");
