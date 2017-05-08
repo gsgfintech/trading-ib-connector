@@ -1022,7 +1022,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else
                 {
-                    logger.Info($"Not using allocation for order {order.OrderID}: flag brokerClient.IsInstitutionalAccount isn't raised and no specific account name was specified");
+                    logger.Info($"Not using allocation for order {order.OrderID}: flag brokerClient.IsInstitutionalAccount isn't raised (value={brokerClient.IsInstitutionalAccount}) and no specific account name was specified");
                 }
 
                 logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
