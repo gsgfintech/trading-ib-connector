@@ -28,10 +28,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly string clientName;
         private readonly CancellationToken stopRequestedCt;
 
-        private bool isInstitutionalAccount;
-        private object isInstitutionalAccountLocker = new object();
-        public bool IsInstitutionalAccount { get { return isInstitutionalAccount; } }
-
         private readonly IBrokerClientType brokerClientType;
         public IBrokerClientType BrokerClientType { get { return brokerClientType; } }
 
@@ -89,7 +85,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ibClient.IBConnectionEstablished += () => UpdateStatus(IsConnectedKey, true, SystemStatusLevel.GREEN);
             ibClient.IBConnectionLost += () => UpdateStatus(IsConnectedKey, false, SystemStatusLevel.RED);
 
-            ibClient.ResponseManager.ManagedAccountsListReceived += ManagedAccountsListReceived;
+            //ibClient.ResponseManager.ManagedAccountsListReceived += ManagedAccountsListReceived;
 
             // Throttle status updates to one every five seconds
             // Delay the first status update by 3 seconds, otherwise the client is already connected before the trade engine has had time to wire up the "StatusUpdated" event listener
@@ -101,39 +97,26 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             SetupExecutors(fxConverter, mdConnector, logTicks, stopRequestedCt, ibContracts);
         }
 
-        private void ManagedAccountsListReceived(string accountsStr)
-        {
-            if (!string.IsNullOrEmpty(accountsStr))
-            {
-                var accounts = accountsStr.Split(',').Where(a => !string.IsNullOrEmpty(a));
+        //private void ManagedAccountsListReceived(string accountsStr)
+        //{
+        //    if (!string.IsNullOrEmpty(accountsStr))
+        //    {
+        //        var accounts = accountsStr.Split(',').Where(a => !string.IsNullOrEmpty(a));
 
-                if (accounts.Count() > 1)
-                {
-                    logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
-                    SetIsInstitutionalAccountFlag(true);
-                }
-                else
-                {
-                    logger.Info($"The user connected to this TWS only manages one account ({accountsStr}): this is an individual account");
-                    SetIsInstitutionalAccountFlag(false);
-                }
+        //        if (accounts.Count() > 1)
+        //        {
+        //            logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
+        //            SetIsInstitutionalAccountFlag(true);
+        //        }
+        //        else
+        //        {
+        //            logger.Info($"The user connected to this TWS only manages one account ({accountsStr}): this is an individual account");
+        //            SetIsInstitutionalAccountFlag(false);
+        //        }
 
-                ibClient.ResponseManager.ManagedAccountsListReceived -= ManagedAccountsListReceived; // We only need to set this once
-            }
-        }
-
-        private void SetIsInstitutionalAccountFlag(bool value)
-        {
-            if (isInstitutionalAccount == value)
-                return;
-
-            logger.Info($"Setting flag {nameof(isInstitutionalAccount)} to {value}");
-
-            lock (isInstitutionalAccountLocker)
-            {
-                isInstitutionalAccount = value;
-            }
-        }
+        //        ibClient.ResponseManager.ManagedAccountsListReceived -= ManagedAccountsListReceived; // We only need to set this once
+        //    }
+        //}
 
         private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
         {
@@ -210,6 +193,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 202:
                             subject = $"Order {error.RequestID} was cancelled";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}";
+                            break;
+                        case 436:
+                            subject = $"Order {error.RequestID} was rejected: missing allocation";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
                             break;
                         case 1100: // TWS<->IB connection broken
                             subject = error.ErrorCodeDescription;

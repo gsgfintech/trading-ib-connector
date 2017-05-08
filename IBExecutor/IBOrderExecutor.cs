@@ -72,6 +72,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private DateTimeOffset lastTradingConnectionResumedCheck = DateTimeOffset.MinValue;
         private object lastTradingConnectionResumedCheckLocker = new object();
 
+        private bool isInstitutionalAccount;
+        private object isInstitutionalAccountLocker = new object();
+
         public event Action TradingConnectionLost;
         public event Action TradingConnectionResumed;
 
@@ -989,7 +992,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(new { SingleAccount = order.Account });
                 }
-                else if (brokerClient.IsInstitutionalAccount)
+                else if (isInstitutionalAccount)
                 {
                     if (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close)
                     {
@@ -1022,7 +1025,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else
                 {
-                    logger.Info($"Not using allocation for order {order.OrderID}: flag brokerClient.IsInstitutionalAccount isn't raised (value={brokerClient.IsInstitutionalAccount}) and no specific account name was specified");
+                    logger.Info($"Not using allocation for order {order.OrderID}: flag brokerClient.IsInstitutionalAccount isn't raised (value={isInstitutionalAccount}) and no specific account name was specified");
                 }
 
                 logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
@@ -1534,12 +1537,36 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
             }
 
-            if (result.Success)
+            if (result.Success && result.FAConfiguration != null)
+            {
+                var accounts = result.FAConfiguration.AccountAliases.Select(a => a.Account);
+
+                if (accounts.Count() > 1)
+                    logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
+                else
+                    logger.Info($"The user connected to this TWS only manages one account ({accounts.FirstOrDefault()}): this is an individual account");
+
+                SetIsInstitutionalAccountFlag(accounts.Count() > 1);
+
                 return result.FAConfiguration;
+            }
             else
             {
                 logger.Error($"Failed to refresh FA configuration: { result.Message}");
                 return null;
+            }
+        }
+
+        private void SetIsInstitutionalAccountFlag(bool value)
+        {
+            if (isInstitutionalAccount == value)
+                return;
+
+            logger.Info($"Setting flag {nameof(isInstitutionalAccount)} to {value}");
+
+            lock (isInstitutionalAccountLocker)
+            {
+                isInstitutionalAccount = value;
             }
         }
 
