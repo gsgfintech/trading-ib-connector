@@ -166,6 +166,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (IB-{error.ErrorCode})";
                     string body = error.ErrorMessage;
+
+                    if (error.RequestID > 0)
+                        body = $"{body} (Request {error.RequestID})";
+
                     AlertLevel level = error.Level;
                     bool relayToMonitoring = error.RelayToMonitoringInterface;
 
