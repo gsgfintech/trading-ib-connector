@@ -127,7 +127,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (isInstitutionalAccount == value)
                 return;
 
-            logger.Info($"Setting flag {nameof(isInstitutionalAccount)} to {isInstitutionalAccount}");
+            logger.Info($"Setting flag {nameof(isInstitutionalAccount)} to {value}");
 
             lock (isInstitutionalAccountLocker)
             {
