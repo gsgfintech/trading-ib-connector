@@ -25,6 +25,24 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             ClientSocket?.reqRealTimeBars(requestID, contract.ToIBContract(), 0, rtBarDataType, getRegularTradingHoursDataOnly, null);
         }
 
+        public void RequestFuture()
+        {
+            ClientSocket.reqMarketDataType(3);
+
+            IBApi.Contract contract = new IBApi.Contract()
+            {
+                ConId = 259130539,
+                Currency = "USD",
+                Exchange = "GLOBEX",
+                LastTradeDateOrContractMonth = "201709",
+                SecType = "FUT",
+                Symbol = "E7"
+            };
+
+            //ClientSocket.reqMktData(25000, contract, "", false, false, null);
+            ClientSocket?.reqRealTimeBars(25000, contract, 0, "BID", false, null);
+        }
+
         /// <summary>
         /// Call this method to stop receiving real time bar results
         /// </summary>

@@ -110,7 +110,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             ibClient.ResponseManager.MarketDataSizeTickReceived += ResponseManager_MarketDataSizeTickReceived;
             ibClient.ResponseManager.MarketDataPriceTickReceived += ResponseManager_MarketDataPriceTickReceived;
+            ibClient.ResponseManager.MarketDataStringTickReceived += ResponseManager_MarketDataStringTickReceived;
             ibClient.ResponseManager.RealTimeBarReceived += ResponseManager_RealTimeBarReceived;
+        }
+
+        private void ResponseManager_MarketDataStringTickReceived(int arg1, MarketDataTickType arg2, string arg3)
+        {
+            logger.Info($"String tick: request={arg1}, tickType={arg2}, value={arg3}");
         }
 
         private void ResponseManager_MarketDataSizeTickReceived(int requestID, MarketDataTickType tickType, int size)
@@ -472,6 +478,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             SubmitMarketDataRequest(GetRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, false));
 
             currentMdTicksSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
+        }
+
+        public void SubscribeFutures()
+        {
+            //ibClient.RequestManager.MarketDataRequestManager.RequestFuture();
+
+            //ibClient.RequestManager.RealTimeBarsRequestManager.RequestFuture();
+
+            ibClient.RequestManager.HistoricalDataRequestManager.RequestFuture();
         }
 
         public void SubscribeRTBars(IEnumerable<Cross> crosses)

@@ -60,6 +60,23 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             }
         }
 
+        public void RequestFuture()
+        {
+            ClientSocket.reqMarketDataType(3);
+
+            IBApi.Contract contract = new IBApi.Contract()
+            {
+                ConId = 259130539,
+                Currency = "USD",
+                Exchange = "GLOBEX",
+                LastTradeDateOrContractMonth = "201709",
+                SecType = "FUT",
+                Symbol = "E7"
+            };
+
+            ClientSocket.reqMktData(25000, contract, "", false, false, null);
+        }
+
         /// <summary>
         /// Cancels a market data request
         /// </summary>

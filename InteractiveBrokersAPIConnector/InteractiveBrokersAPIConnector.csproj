@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="Capital.GSG.FX.Data.Core" Version="1.23.11" />
-    <PackageReference Include="Capital.GSG.FX.Utils.Core" Version="1.4.0" />
+    <PackageReference Include="Capital.GSG.FX.Utils.Core" Version="1.4.1" />
     <PackageReference Include="IBData" Version="1.1.0" />
     <PackageReference Include="InteractiveBrokers.TwsApi" Version="9.73.2" />
     <PackageReference Include="log4net" Version="2.0.8" />

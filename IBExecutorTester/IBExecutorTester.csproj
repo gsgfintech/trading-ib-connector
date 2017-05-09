@@ -45,8 +45,8 @@
     <Reference Include="Capital.gsg.FX.IB.TwsService.Connector, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.gsg.FX.IB.TwsService.Connector.1.1.0\lib\net46\Capital.gsg.FX.IB.TwsService.Connector.dll</HintPath>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Utils.Core, Version=1.4.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Utils.Core.1.4.0\lib\net46\Capital.GSG.FX.Utils.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Utils.Core, Version=1.4.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Utils.Core.1.4.1\lib\net46\Capital.GSG.FX.Utils.Core.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.Utils.Core.Logging, Version=2.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.Utils.Core.Logging.2.2.1\lib\net46\Capital.GSG.FX.Utils.Core.Logging.dll</HintPath>

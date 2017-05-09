@@ -137,11 +137,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Task.Delay(TimeSpan.FromSeconds(10)).Wait();
 
                 //await SubscribeAndListenRTBars(brokerClient);
+                TestSubscribeFuture(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
 
-                await PlaceMarketOrders(brokerClient.OrderExecutor);
+                //await PlaceMarketOrders(brokerClient.OrderExecutor);
 
                 //await PlaceStopOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateStopOrders(brokerClient.OrderExecutor);
@@ -461,6 +462,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 brokerClient.MarketDataProvider.UnsubscribeRTBars();
             });
+        }
+
+        private static void TestSubscribeFuture(BrokerClient brokerClient)
+        {
+            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeFutures();
         }
     }
 }

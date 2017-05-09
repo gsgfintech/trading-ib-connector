@@ -41,6 +41,27 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             ClientSocket.reqHistoricalData(requestID, contract.ToIBContract(), endDateStr, timeSpanStr, barSizeStr, dataTypeStr, getRegularTradingHoursDataOnlyInt, 1, null);
         }
 
+        public void RequestFuture()
+        {
+            IBApi.Contract contract = new IBApi.Contract()
+            {
+                ConId = 259130539,
+                Currency = "USD",
+                Exchange = "GLOBEX",
+                LastTradeDateOrContractMonth = "201709",
+                SecType = "FUT",
+                Symbol = "E7"
+            };
+
+            string endDateStr = "20170509 00:00:00";
+            string timeSpanStr = $"3600";
+            string barSizeStr = "5 secs";
+            string dataTypeStr = "MIDPOINT";
+            int getRegularTradingHoursDataOnlyInt = 0;
+
+            ClientSocket.reqHistoricalData(25000, contract, endDateStr, timeSpanStr, barSizeStr, dataTypeStr, getRegularTradingHoursDataOnlyInt, 1, null);
+        }
+
         /// <summary>
         /// Cancels a historical data request
         /// </summary>
