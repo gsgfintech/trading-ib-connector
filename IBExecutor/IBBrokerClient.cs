@@ -67,7 +67,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, TwsServiceConnector twsServiceConnector, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt)
+        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, TwsServiceConnector twsServiceConnector, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<CmeFutureContract> ibCmeFutureContracts = null)
         {
             brokerClientType = clientType;
             clientName = clientConfig.Name;
@@ -94,7 +94,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
 
-            SetupExecutors(fxConverter, mdConnector, logTicks, stopRequestedCt, ibContracts);
+            SetupExecutors(fxConverter, mdConnector, logTicks, stopRequestedCt, ibContracts, ibCmeFutureContracts);
         }
 
         //private void ManagedAccountsListReceived(string accountsStr)
@@ -118,7 +118,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         //    }
         //}
 
-        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts)
+        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts, IEnumerable<CmeFutureContract> ibCmeFutureContracts)
         {
             if (brokerClientType != IBrokerClientType.MarketData)
             {
@@ -133,7 +133,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info("Setting up market data provider and news bulletins provider");
 
                 historicalDataProvider = new IBHistoricalDataProvider(ibClient, ibContracts, stopRequestedCt);
-                marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, logTicks, stopRequestedCt);
+                marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, ibCmeFutureContracts, logTicks, stopRequestedCt);
                 newsProvider = new IBNewsProvider(ibClient, stopRequestedCt);
                 newsBulletinProvider = new IBNewsBulletinProvider(ibClient);
             }
@@ -145,8 +145,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 if (error != null)
                 {
-                    MarketDataRequest requestDetails = null;
-
                     string subject = $"{error.ErrorCodeDescription ?? "Unclassified error"} (IB-{error.ErrorCode})";
                     string body = error.ErrorMessage;
 
@@ -181,7 +179,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 200:
                         case 300:
                             subject = $"Failed MD request {error.RequestID}";
-                            requestDetails = marketDataProvider?.GetRequestDetails(error.RequestID);
+                            string requestDetails = marketDataProvider?.GetMarketDataRequestDetails(error.RequestID);
                             if (requestDetails != null)
                                 body = $"No security definition found for request {requestDetails}";
                             break;
