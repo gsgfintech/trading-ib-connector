@@ -66,7 +66,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
 
             IBApi.Contract contract = new IBApi.Contract()
             {
-                ConId = 259130539,
+                //ConId = 259130539,
                 Currency = "USD",
                 Exchange = "GLOBEX",
                 LastTradeDateOrContractMonth = "201709",

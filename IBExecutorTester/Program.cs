@@ -57,9 +57,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             TwsClientConfig brokerClientConfig = new TwsClientConfig()
             {
-                ClientNumber = 4,
-                Host = "gsg-srv-3.gsg.capital",
-                Name = "TWS_GSG_Paper_Dev_MD",
+                ClientNumber = 7,
+                Host = "tryphon.gsg.capital",
+                Name = "TWS_Guill_Paper_Dev",
                 Port = 7497
             };
 

@@ -482,11 +482,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public void SubscribeFutures()
         {
-            //ibClient.RequestManager.MarketDataRequestManager.RequestFuture();
+            ibClient.RequestManager.MarketDataRequestManager.RequestFuture();
 
             //ibClient.RequestManager.RealTimeBarsRequestManager.RequestFuture();
 
-            ibClient.RequestManager.HistoricalDataRequestManager.RequestFuture();
+            //ibClient.RequestManager.HistoricalDataRequestManager.RequestFuture();
         }
 
         public void SubscribeRTBars(IEnumerable<Cross> crosses)
