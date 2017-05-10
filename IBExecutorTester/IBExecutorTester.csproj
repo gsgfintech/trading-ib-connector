@@ -36,8 +36,8 @@
     <Reference Include="AzureTableConnector, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\AzureTableConnector.3.0.0\lib\net46\AzureTableConnector.dll</HintPath>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.23.11.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.23.11\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Data.Core, Version=1.25.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Data.Core.1.25.0\lib\net46\Capital.GSG.FX.Data.Core.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.FXConverter, Version=1.4.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.FXConverter.1.4.0\lib\net46\Capital.GSG.FX.FXConverter.dll</HintPath>
@@ -45,8 +45,8 @@
     <Reference Include="Capital.gsg.FX.IB.TwsService.Connector, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.gsg.FX.IB.TwsService.Connector.1.1.0\lib\net46\Capital.gsg.FX.IB.TwsService.Connector.dll</HintPath>
     </Reference>
-    <Reference Include="Capital.GSG.FX.Utils.Core, Version=1.4.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Capital.GSG.FX.Utils.Core.1.4.1\lib\net46\Capital.GSG.FX.Utils.Core.dll</HintPath>
+    <Reference Include="Capital.GSG.FX.Utils.Core, Version=1.5.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Capital.GSG.FX.Utils.Core.1.5.0\lib\net46\Capital.GSG.FX.Utils.Core.dll</HintPath>
     </Reference>
     <Reference Include="Capital.GSG.FX.Utils.Core.Logging, Version=2.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Capital.GSG.FX.Utils.Core.Logging.2.2.1\lib\net46\Capital.GSG.FX.Utils.Core.Logging.dll</HintPath>
@@ -60,8 +60,8 @@
     <Reference Include="FXTradingMongoConnector.Core, Version=1.6.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\FXTradingMongoConnector.Core.1.6.1\lib\net46\FXTradingMongoConnector.Core.dll</HintPath>
     </Reference>
-    <Reference Include="IBData, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\IBData.1.1.0\lib\net46\IBData.dll</HintPath>
+    <Reference Include="IBData, Version=1.2.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\IBData.1.2.1\lib\net46\IBData.dll</HintPath>
     </Reference>
     <Reference Include="IBData.Service.Connector, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IBData.Service.Connector.2.0.0\lib\net46\IBData.Service.Connector.dll</HintPath>
@@ -89,15 +89,14 @@
       <HintPath>..\packages\Microsoft.Data.Services.Client.5.8.2\lib\net40\Microsoft.Data.Services.Client.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Microsoft.Extensions.DependencyInjection.Abstractions, Version=1.1.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.Abstractions.1.1.0\lib\netstandard1.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="Microsoft.Extensions.DependencyInjection.Abstractions, Version=1.1.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.Abstractions.1.1.1\lib\netstandard1.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Extensions.Logging, Version=1.1.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Extensions.Logging.1.1.1\lib\netstandard1.1\Microsoft.Extensions.Logging.dll</HintPath>
+    <Reference Include="Microsoft.Extensions.Logging, Version=1.1.2.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Logging.1.1.2\lib\netstandard1.1\Microsoft.Extensions.Logging.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Extensions.Logging.Abstractions, Version=1.1.1.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Extensions.Logging.Abstractions.1.1.1\lib\netstandard1.1\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions, Version=1.1.2.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Logging.Abstractions.1.1.2\lib\netstandard1.1\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.IdentityModel.Clients.ActiveDirectory, Version=3.13.9.1126, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.IdentityModel.Clients.ActiveDirectory.3.13.9\lib\net45\Microsoft.IdentityModel.Clients.ActiveDirectory.dll</HintPath>
@@ -150,9 +149,8 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Core" />
-    <Reference Include="System.Diagnostics.DiagnosticSource, Version=4.0.1.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Diagnostics.DiagnosticSource.4.3.0\lib\net46\System.Diagnostics.DiagnosticSource.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="System.Diagnostics.DiagnosticSource, Version=4.0.1.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Diagnostics.DiagnosticSource.4.3.1\lib\net46\System.Diagnostics.DiagnosticSource.dll</HintPath>
     </Reference>
     <Reference Include="System.Diagnostics.Process, Version=4.1.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Diagnostics.Process.4.3.0\lib\net461\System.Diagnostics.Process.dll</HintPath>
@@ -191,9 +189,8 @@
       <HintPath>..\packages\System.IO.FileSystem.Watcher.4.3.0\lib\net46\System.IO.FileSystem.Watcher.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.Net.Http, Version=4.1.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Net.Http.4.3.1\lib\net46\System.Net.Http.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="System.Net.Http, Version=4.1.1.1, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Net.Http.4.3.2\lib\net46\System.Net.Http.dll</HintPath>
     </Reference>
     <Reference Include="System.Net.NameResolution, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Net.NameResolution.4.3.0\lib\net46\System.Net.NameResolution.dll</HintPath>
@@ -248,8 +245,8 @@
       <HintPath>..\packages\System.Threading.Thread.4.3.0\lib\net46\System.Threading.Thread.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.ValueTuple, Version=4.0.1.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.ValueTuple.4.3.0\lib\netstandard1.0\System.ValueTuple.dll</HintPath>
+    <Reference Include="System.ValueTuple, Version=4.0.1.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ValueTuple.4.3.1\lib\netstandard1.0\System.ValueTuple.dll</HintPath>
     </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -264,8 +261,8 @@
       <HintPath>..\packages\System.Xml.XmlDocument.4.3.0\lib\net46\System.Xml.XmlDocument.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TradingExecutor.Core, Version=2.3.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\TradingExecutor.Core.2.3.1\lib\net46\TradingExecutor.Core.dll</HintPath>
+    <Reference Include="TradingExecutor.Core, Version=2.3.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TradingExecutor.Core.2.3.3\lib\net46\TradingExecutor.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

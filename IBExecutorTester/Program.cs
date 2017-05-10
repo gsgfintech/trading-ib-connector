@@ -63,35 +63,55 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Port = 7497
             };
 
-            string monitoringEndpoint = "http://localhost:51468/";
-            string azureTableConnectionString = "UseDevelopmentStorage=true;";
-
             logger.Info("Starting service IBExecutorTester");
 
             logger.Debug($"BrokerClientConfigId: {brokerClientConfig.Name}");
-            logger.Debug($"MonitoringEndpoint: {monitoringEndpoint}");
 
             fxConverter = new ConvertConnector(MarketDataServiceAddress, ClientId, AppKey, MarketDataServiceAppUri);
             mdConnector = new MDConnector(MarketDataServiceAddress, ClientId, AppKey, MarketDataServiceAppUri);
 
             TwsServiceConnector twsServiceConnector = new TwsServiceConnector(TwsServiceBackendAddress, ClientId, AppKey, TwsServiceBackendAppUri);
+            MonitoringServerConnector backendConnector = new MonitoringServerConnector(ClientId, AppKey, MonitorBackendAddress, MonitorBackendAppUri);
 
-            Do(brokerClientConfig, azureTableConnectionString, twsServiceConnector).Wait();
+            Do(brokerClientConfig, twsServiceConnector, backendConnector).Wait();
         }
 
-        private static async Task Do(TwsClientConfig clientConfig, string azureTableConnectionString, TwsServiceConnector twsServiceConnector)
+        private static async Task Do(TwsClientConfig clientConfig, TwsServiceConnector twsServiceConnector, MonitoringServerConnector backendConnector)
         {
             try
             {
-                ContractsConnector contractsConnector = ContractsConnector.GetConnector("https://tryphon.gsg.capital:6583");
+                #region Load IB FX Contracts
+                var ibContractsResult = await backendConnector.ContractsConnector.GetAll();
 
-                List<Contract> ibContracts = await contractsConnector.GetAll();
+                if (!ibContractsResult.Success)
+                {
+                    logger.Error("Failed to load IB FX contracts list");
+                    return;
+                }
+                #endregion
+
+                #region Load IB CME Future Contracts
+                // TODO: load from backend
+
+                //var ibCmeFutContractsResult = await backendConnector.cme.GetAll();
+
+                //if (!ibContractsResult.Success)
+                //{
+                //    logger.Error("Failed to load IB FX contracts list");
+                //    return;
+                //}
+
+                List<CmeFutureContract> ibCmeFuturesContracts = new List<CmeFutureContract>()
+                {
+                    new CmeFutureContract() { Currency = Currency.USD, CurrentExpi = new DateTime(2017, 6, 19), Description = "GBPUSD", Symbol = "M6B" }
+                };
+                #endregion
 
                 IBTestTradingExecutorRunner tradingExecutorRunner = new IBTestTradingExecutorRunner();
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token);
+                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContractsResult.Contracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token, ibCmeFuturesContracts);
                 brokerClient.StopComplete += (() => stopCompleteEvent.Set());
                 brokerClient.AlertReceived += (alert) =>
                 {
@@ -466,7 +486,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static void TestSubscribeFuture(BrokerClient brokerClient)
         {
-            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeFutures();
+            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeCMEFutures("M6B");
         }
     }
 }

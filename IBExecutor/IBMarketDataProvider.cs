@@ -11,6 +11,8 @@ using Capital.GSG.FX.Data.Core.MarketData;
 using static Capital.GSG.FX.Data.Core.MarketData.MarketDataTickType;
 using Capital.GSG.FX.Utils.Core;
 using static Capital.GSG.FX.Data.Core.SystemData.SystemStatusLevel;
+using IBData;
+using System.Text;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -18,9 +20,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
     {
         private static ILog logger = LogManager.GetLogger(nameof(IBMarketDataProvider));
 
-        private readonly Dictionary<int, MarketDataRequest> marketDataRequests = new Dictionary<int, MarketDataRequest>();
+        private readonly Dictionary<int, FXMarketDataRequest> fxMarketDataRequests = new Dictionary<int, FXMarketDataRequest>();
+
+        private readonly Dictionary<int, CMEFutureMarketDataRequest> cmeFutureMarketDataRequests = new Dictionary<int, CMEFutureMarketDataRequest>();
+        private readonly Dictionary<(string Symbol, MarketDataRequestType Type), int> cmeFutureMarketDataRequestsBySymbol = new Dictionary<(string Symbol, MarketDataRequestType Type), int>();
 
         private readonly ConcurrentDictionary<Cross, RTBar> currentRtBars = new ConcurrentDictionary<Cross, RTBar>();
+        private readonly ConcurrentDictionary<(string Symbol, DateTime Expiry), CmeFutMarketDataTick> currentCmeFutureTicks = new ConcurrentDictionary<(string Symbol, DateTime Expiry), CmeFutMarketDataTick>();
 
         private readonly MarketDataTickType[] interestingSizeTickTypes = { BID_SIZE, ASK_SIZE };
         private readonly MarketDataTickType[] interestingPriceTickTypes = { BID, ASK };
@@ -32,6 +38,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private ConcurrentDictionary<Cross, bool> currentMdTicksSubscribed = new ConcurrentDictionary<Cross, bool>();
         private ConcurrentDictionary<Cross, bool> currentRtBarsSubscribed = new ConcurrentDictionary<Cross, bool>();
+        private ConcurrentDictionary<(string Symbol, DateTime Expiry), bool> currentCmeFuturesSubscribed = new ConcurrentDictionary<(string Symbol, DateTime Expiry), bool>();
 
         private DateTimeOffset lastMarketDataLostCheck = DateTimeOffset.MinValue;
         private object lastMarketDataLostCheckLocker = new object();
@@ -47,7 +54,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public event Action MarketDataConnectionResumed;
         public event Action HistoricalDataConnectionResumed;
 
-        internal IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, IEnumerable<Contract> ibContracts, bool logTicks, CancellationToken stopRequestedCt)
+        internal IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, IEnumerable<Contract> ibContracts, IEnumerable<CmeFutureContract> ibCmeFutContracts, bool logTicks, CancellationToken stopRequestedCt)
         {
             if (brokerClient == null)
                 throw new ArgumentNullException(nameof(brokerClient));
@@ -82,24 +89,41 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             this.logTicks = logTicks;
 
-            SetupMarketDataRequests(ibContracts);
+            SetupMarketDataRequests(ibContracts, ibCmeFutContracts);
 
             SetupEventListeners();
         }
 
-        private void SetupMarketDataRequests(IEnumerable<Contract> ibContracts)
+        private void SetupMarketDataRequests(IEnumerable<Contract> ibContracts, IEnumerable<CmeFutureContract> ibCMEFutureContracts)
         {
             if (!ibContracts.IsNullOrEmpty())
             {
-                marketDataRequests.Clear();
+                fxMarketDataRequests.Clear();
 
                 int counter = 10;
                 foreach (Contract contract in ibContracts)
                 {
-                    marketDataRequests.Add(counter + 0, new MarketDataRequest(counter + 0, contract.Cross, contract, MarketDataRequestType.MarketDataTick));
-                    marketDataRequests.Add(counter + 1, new MarketDataRequest(counter + 1, contract.Cross, contract, MarketDataRequestType.RtBarBid));
-                    marketDataRequests.Add(counter + 2, new MarketDataRequest(counter + 2, contract.Cross, contract, MarketDataRequestType.RtBarMid));
-                    marketDataRequests.Add(counter + 3, new MarketDataRequest(counter + 3, contract.Cross, contract, MarketDataRequestType.RtBarAsk));
+                    fxMarketDataRequests.Add(counter + 0, new FXMarketDataRequest(counter + 0, contract, MarketDataRequestType.MarketDataTick));
+                    fxMarketDataRequests.Add(counter + 1, new FXMarketDataRequest(counter + 1, contract, MarketDataRequestType.RtBarBid));
+                    fxMarketDataRequests.Add(counter + 2, new FXMarketDataRequest(counter + 2, contract, MarketDataRequestType.RtBarMid));
+                    fxMarketDataRequests.Add(counter + 3, new FXMarketDataRequest(counter + 3, contract, MarketDataRequestType.RtBarAsk));
+
+                    counter += 10;
+                }
+            }
+
+            if (!ibCMEFutureContracts.IsNullOrEmpty())
+            {
+                cmeFutureMarketDataRequests.Clear();
+                cmeFutureMarketDataRequestsBySymbol.Clear();
+
+                int counter = 2000;
+                foreach (var contract in ibCMEFutureContracts)
+                {
+                    cmeFutureMarketDataRequests.Add(counter + 0, new CMEFutureMarketDataRequest(counter + 0, contract, MarketDataRequestType.MarketDataTick));
+                    cmeFutureMarketDataRequestsBySymbol.Add((contract.Symbol, MarketDataRequestType.MarketDataTick), counter + 0);
+
+                    // TODO : RT Bars requests
 
                     counter += 10;
                 }
@@ -108,22 +132,19 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void SetupEventListeners()
         {
-            ibClient.ResponseManager.MarketDataSizeTickReceived += ResponseManager_MarketDataSizeTickReceived;
-            ibClient.ResponseManager.MarketDataPriceTickReceived += ResponseManager_MarketDataPriceTickReceived;
-            ibClient.ResponseManager.MarketDataStringTickReceived += ResponseManager_MarketDataStringTickReceived;
-            ibClient.ResponseManager.RealTimeBarReceived += ResponseManager_RealTimeBarReceived;
+            ibClient.ResponseManager.MarketDataSizeTickReceived += MarketDataSizeTickReceived;
+            ibClient.ResponseManager.MarketDataPriceTickReceived += MarketDataPriceTickReceived;
+            ibClient.ResponseManager.RealTimeBarReceived += RealTimeBarReceived;
         }
 
-        private void ResponseManager_MarketDataStringTickReceived(int arg1, MarketDataTickType arg2, string arg3)
+        private void MarketDataSizeTickReceived(int requestID, MarketDataTickType tickType, int size)
         {
-            logger.Info($"String tick: request={arg1}, tickType={arg2}, value={arg3}");
-        }
+            // 1. Try parse FX request
+            var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestID);
 
-        private void ResponseManager_MarketDataSizeTickReceived(int requestID, MarketDataTickType tickType, int size)
-        {
-            if (marketDataRequests.ContainsKey(requestID) && marketDataRequests[requestID].Type == MarketDataRequestType.MarketDataTick)
+            if (fxRequest != null && fxRequest.Type == MarketDataRequestType.MarketDataTick)
             {
-                Cross cross = marketDataRequests[requestID].Cross;
+                Cross cross = fxRequest.Contract.Cross;
 
                 if (size > 0 && interestingSizeTickTypes.Contains(tickType))
                 {
@@ -134,14 +155,43 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else
                     logger.Debug($"Received size tick data with 0 size. Not recording: requestID={requestID}, cross={cross}, tickType={tickType}, size={size}");
+
+                return;
+            }
+
+            // 2. Otherwise try parse CME Fut request
+            var cmeFutRequest = cmeFutureMarketDataRequests.GetValueOrDefault(requestID);
+
+            if (cmeFutRequest != null && cmeFutRequest.Type == MarketDataRequestType.MarketDataTick)
+            {
+                CmeFutureContract contract = cmeFutRequest.Contract;
+
+                // TODO
+                var tick = currentCmeFutureTicks.AddOrUpdate((contract.Symbol, contract.CurrentExpi), key =>
+                {
+                    var newTick = new CmeFutMarketDataTick() { Symbol = contract.Symbol, Expiry = contract.CurrentExpi };
+                    EnrichCmeFutPriceTick(tickType, size, ref newTick);
+                    return newTick;
+                }, (key, oldValue) =>
+                {
+                    EnrichCmeFutPriceTick(tickType, size, ref oldValue);
+                    return oldValue;
+                });
+
+                logger.Debug($"CME Fut tick update: {tick.Timestamp}|{tick.Symbol}|{tick.Expiry:yyyyMMdd}|Ask={tick.Ask}|AskSize={tick.AskSize}|Bid={tick.Bid}|BidSize={tick.BidSize}|Volume={tick.DayVolume}|Open={tick.DayOpen}|High={tick.DayHigh}|Low={tick.DayLow}|Close={tick.PrevDayClose}|LastTradePrice={tick.LastTradePrice}|LastTradeSize={tick.LastTradeSize}");
+
+                brokerClient.TradingExecutorRunner?.OnCmeFutureTick(tick);
             }
         }
 
-        private void ResponseManager_MarketDataPriceTickReceived(int requestID, MarketDataTickType tickType, double value, bool canAutoExecute)
+        private void MarketDataPriceTickReceived(int requestID, MarketDataTickType tickType, double value, bool canAutoExecute)
         {
-            if (marketDataRequests.ContainsKey(requestID) && marketDataRequests[requestID].Type == MarketDataRequestType.MarketDataTick)
+            // 1. Try parse FX request
+            var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestID);
+
+            if (fxRequest != null && fxRequest.Type == MarketDataRequestType.MarketDataTick)
             {
-                Cross cross = marketDataRequests[requestID].Cross;
+                Cross cross = fxRequest.Contract.Cross;
 
                 if (value > 0.0 && interestingPriceTickTypes.Contains(tickType))
                 {
@@ -152,19 +202,91 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else
                     logger.Debug($"Received price tick data with 0.0 value. Not recording: requestID={requestID}, cross={cross}, type={tickType}, value={value}, canAutoExecute={canAutoExecute}");
+
+                return;
+            }
+
+            // 2. Otherwise try parse CME Fut request
+            var cmeFutRequest = cmeFutureMarketDataRequests.GetValueOrDefault(requestID);
+
+            if (cmeFutRequest != null && cmeFutRequest.Type == MarketDataRequestType.MarketDataTick)
+            {
+                CmeFutureContract contract = cmeFutRequest.Contract;
+
+                var tick = currentCmeFutureTicks.AddOrUpdate((contract.Symbol, contract.CurrentExpi), key =>
+                {
+                    var newTick = new CmeFutMarketDataTick() { Symbol = contract.Symbol, Expiry = contract.CurrentExpi };
+                    EnrichCmeFutPriceTick(tickType, value, ref newTick);
+                    return newTick;
+                }, (key, oldValue) =>
+                {
+                    EnrichCmeFutPriceTick(tickType, value, ref oldValue);
+                    return oldValue;
+                });
+
+                logger.Debug($"CME Fut tick update: {tick.Timestamp}|{tick.Symbol}|{tick.Expiry:yyyyMMdd}|Ask={tick.Ask}|AskSize={tick.AskSize}|Bid={tick.Bid}|BidSize={tick.BidSize}|Volume={tick.DayVolume}|Open={tick.DayOpen}|High={tick.DayHigh}|Low={tick.DayLow}|Close={tick.PrevDayClose}|LastTradePrice={tick.LastTradePrice}|LastTradeSize={tick.LastTradeSize}");
+
+                brokerClient.TradingExecutorRunner?.OnCmeFutureTick(tick);
             }
         }
 
-        private void ResponseManager_RealTimeBarReceived(int requestID, DateTime time, double open, double high, double low, double close, TimeSpan delay)
+        private void EnrichCmeFutPriceTick(MarketDataTickType tickType, double value, ref CmeFutMarketDataTick tick)
         {
-            if (marketDataRequests.ContainsKey(requestID) && marketDataRequests[requestID].Type != MarketDataRequestType.MarketDataTick)
+            tick.Timestamp = DateTimeOffset.Now;
+
+            switch (tickType)
             {
-                Cross cross = marketDataRequests[requestID].Cross;
+                case BID:
+                    tick.Bid = value;
+                    break;
+                case BID_SIZE:
+                    tick.BidSize = value;
+                    break;
+                case ASK:
+                    tick.Ask = value;
+                    break;
+                case ASK_SIZE:
+                    tick.AskSize = value;
+                    break;
+                case HIGH:
+                    tick.DayHigh = value;
+                    break;
+                case LOW:
+                    tick.DayLow = value;
+                    break;
+                case CLOSE:
+                    tick.PrevDayClose = value;
+                    break;
+                case OPEN:
+                    tick.DayOpen = value;
+                    break;
+                case LAST:
+                    tick.LastTradePrice = value;
+                    break;
+                case LAST_SIZE:
+                    tick.LastTradeSize = value;
+                    break;
+                case VOLUME:
+                    tick.DayVolume = value;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void RealTimeBarReceived(int requestID, DateTime time, double open, double high, double low, double close, TimeSpan delay)
+        {
+            // 1. Try parse FX request
+            var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestID);
+
+            if (fxRequest != null && fxRequest.Type != MarketDataRequestType.MarketDataTick)
+            {
+                Cross cross = fxRequest.Contract.Cross;
 
                 double delayInMs = Math.Round(delay.TotalMilliseconds, 0);
 
                 if (logTicks)
-                    logger.Debug($"Received real time bar: requestID={requestID}, cross={cross}, type={marketDataRequests[requestID].Type}, time={time}, open={open}, high={high}, low={low}, close={close}, delay={delayInMs:N0}ms");
+                    logger.Debug($"Received real time bar: requestID={requestID}, cross={cross}, type={fxMarketDataRequests[requestID].Type}, time={time}, open={open}, high={high}, low={low}, close={close}, delay={delayInMs:N0}ms");
 
                 brokerClient.UpdateStatus("RTBarDelayInMs", delayInMs, delayInMs < 15000 ? GREEN : delayInMs < 30000 ? YELLOW : RED);
 
@@ -184,7 +306,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                         RTBar fastForwardRtBar = new RTBar(time, cross);
 
-                        switch (marketDataRequests[requestID].Type)
+                        switch (fxMarketDataRequests[requestID].Type)
                         {
                             case MarketDataRequestType.RtBarAsk:
                                 fastForwardRtBar.Ask = rtBarPoint;
@@ -219,7 +341,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             Mid = currentRtBar.Mid
                         };
 
-                        switch (marketDataRequests[requestID].Type)
+                        switch (fxMarketDataRequests[requestID].Type)
                         {
                             case MarketDataRequestType.RtBarAsk:
                                 updatedRtBar.Ask = rtBarPoint;
@@ -259,7 +381,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 {
                     RTBar newRtBar = new RTBar(time, cross);
 
-                    switch (marketDataRequests[requestID].Type)
+                    switch (fxMarketDataRequests[requestID].Type)
                     {
                         case MarketDataRequestType.RtBarAsk:
                             newRtBar.Ask = rtBarPoint;
@@ -280,31 +402,49 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (!currentRtBars.TryAdd(cross, newRtBar))
                         logger.Error($"Failed to add new incomplete RT bar to the dictionary: {newRtBar}");
                 }
+
+                return;
             }
-        }
 
-        private int GetRequestIdForCrossAndRequestType(Cross cross, MarketDataRequestType type, bool submitted)
-        {
-            return marketDataRequests.Where(r => r.Value.Cross == cross && r.Value.Type == type && r.Value.Submitted == submitted).Select(r => r.Key).FirstOrDefault();
-        }
+            // 2. Otherwise try parse CME Fut request
+            var cmeFutRequest = cmeFutureMarketDataRequests.GetValueOrDefault(requestID);
 
-        internal MarketDataRequest GetRequestDetails(int requestId)
-        {
-            if (marketDataRequests.ContainsKey(requestId))
-                return marketDataRequests[requestId];
-            else
+            if (cmeFutRequest != null && cmeFutRequest.Type == MarketDataRequestType.MarketDataTick)
             {
-                logger.Error($"Unable to retrieve details for unknown requestId {requestId}");
-                return null;
+                CmeFutureContract contract = cmeFutRequest.Contract;
+
+                // TODO
             }
         }
 
-        private IEnumerable<int> GetRequestIdsForCrossAndRequestTypes(Cross cross, IEnumerable<MarketDataRequestType> types, bool submitted)
+        private int GetFXRequestIdForCrossAndRequestType(Cross cross, MarketDataRequestType type, bool submitted)
+        {
+            return fxMarketDataRequests.Where(r => r.Value.Contract.Cross == cross && r.Value.Type == type && r.Value.Submitted == submitted).Select(r => r.Key).FirstOrDefault();
+        }
+
+        internal string GetMarketDataRequestDetails(int requestId)
+        {
+            // 1. Try parse FX request
+            var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestId);
+
+            if (fxRequest != null)
+                return $"{fxRequest.Contract.Cross} - {fxRequest.Type}";
+
+            // 2. Otherwise try parse CME Fut request
+            var cmeFutRequest = cmeFutureMarketDataRequests.GetValueOrDefault(requestId);
+
+            if (cmeFutRequest != null)
+                return $"{cmeFutRequest.Contract.Symbol} ({cmeFutRequest.Contract.Description} - {cmeFutRequest.Contract.CurrentExpi:yyyyMMdd}) - {fxRequest.Type}";
+
+            return "unknown";
+        }
+
+        private IEnumerable<int> GetFXRequestIdsForCrossAndRequestTypes(Cross cross, IEnumerable<MarketDataRequestType> types, bool submitted)
         {
             if (types.IsNullOrEmpty())
                 return null;
             else
-                return marketDataRequests.Where(r => r.Value.Cross == cross && types.Contains(r.Value.Type) && r.Value.Submitted == submitted).Select(r => r.Key);
+                return fxMarketDataRequests.Where(r => r.Value.Contract.Cross == cross && types.Contains(r.Value.Type) && r.Value.Submitted == submitted).Select(r => r.Key);
         }
 
         private IEnumerable<int> GetRequestIdsForRequestTypes(IEnumerable<MarketDataRequestType> types, bool submitted)
@@ -312,15 +452,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             if (types.IsNullOrEmpty())
                 return null;
             else
-                return marketDataRequests.Where(r => types.Contains(r.Value.Type) && r.Value.Submitted == submitted).Select(r => r.Key);
+                return fxMarketDataRequests.Where(r => types.Contains(r.Value.Type) && r.Value.Submitted == submitted).Select(r => r.Key);
         }
 
-        private IEnumerable<int> GetRequestIdsForCrossesAndRequestType(IEnumerable<Cross> crosses, MarketDataRequestType type, bool submitted)
+        private IEnumerable<int> GetFXRequestIdsForCrossesAndRequestType(IEnumerable<Cross> crosses, MarketDataRequestType type, bool submitted)
         {
             if (crosses.IsNullOrEmpty())
                 return null;
             else
-                return marketDataRequests.Where(r => crosses.Contains(r.Value.Cross) && r.Value.Type == type && r.Value.Submitted == submitted).Select(r => r.Key);
+                return fxMarketDataRequests.Where(r => crosses.Contains(r.Value.Contract.Cross) && r.Value.Type == type && r.Value.Submitted == submitted).Select(r => r.Key);
         }
 
         private IEnumerable<int> GetRequestIdsForRequestType(MarketDataRequestType type, bool submitted)
@@ -328,23 +468,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             return GetRequestIdsForRequestTypes(new MarketDataRequestType[1] { type }, submitted);
         }
 
-        private IEnumerable<int> GetRequestIdsForCrossesAndRequestTypes(IEnumerable<Cross> crosses, IEnumerable<MarketDataRequestType> types, bool submitted)
+        private IEnumerable<int> GetFXRequestIdsForCrossesAndRequestTypes(IEnumerable<Cross> crosses, IEnumerable<MarketDataRequestType> types, bool submitted)
         {
             if (crosses.IsNullOrEmpty() || types.IsNullOrEmpty())
                 return null;
             else
-                return marketDataRequests.Where(r => crosses.Contains(r.Value.Cross) && types.Contains(r.Value.Type) && r.Value.Submitted == submitted).Select(r => r.Key);
-        }
-
-        private void MarkAllRequestsAsUnsubmitted()
-        {
-            foreach (KeyValuePair<int, MarketDataRequest> request in marketDataRequests)
-                request.Value.Submitted = false;
+                return fxMarketDataRequests.Where(r => crosses.Contains(r.Value.Contract.Cross) && types.Contains(r.Value.Type) && r.Value.Submitted == submitted).Select(r => r.Key);
         }
 
         private void ResubmitPreviousMarketDataRequests()
         {
-            int[] requestIds = marketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key).Distinct().ToArray();
+            int[] requestIds = fxMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key).Distinct().ToArray();
 
             if (!requestIds.IsNullOrEmpty())
             {
@@ -362,34 +496,73 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void SubmitMarketDataRequest(int requestId)
         {
-            if (marketDataRequests.ContainsKey(requestId))
-            {
-                logger.Info($"Submitting market data request {requestId} ({marketDataRequests[requestId].Cross} - {marketDataRequests[requestId].Type})");
+            // 1. Try parse FX request
+            var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestId);
 
-                switch (marketDataRequests[requestId].Type)
+            if (fxRequest != null)
+            {
+                logger.Info($"Submitting FX market data request {requestId} ({fxRequest.Contract.Cross} - {fxRequest.Type})");
+
+                switch (fxRequest.Type)
                 {
                     case MarketDataRequestType.MarketDataTick:
-                        ibClient.RequestManager.MarketDataRequestManager.RequestMarketData(requestId, marketDataRequests[requestId].Contract);
+                        ibClient.RequestManager.MarketDataRequestManager.RequestMarketData(requestId, fxRequest.Contract);
                         break;
                     case MarketDataRequestType.RtBarBid:
-                        ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, marketDataRequests[requestId].Contract, "BID", true);
+                        ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "BID", true);
                         break;
                     case MarketDataRequestType.RtBarMid:
-                        ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, marketDataRequests[requestId].Contract, "MIDPOINT", true);
+                        ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "MIDPOINT", true);
                         break;
                     case MarketDataRequestType.RtBarAsk:
-                        ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, marketDataRequests[requestId].Contract, "ASK", true);
+                        ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "ASK", true);
                         break;
                     default:
                         break;
                 }
 
-                marketDataRequests[requestId].Submitted = true;
+                fxRequest.Submitted = true;
 
                 Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+
+                return;
             }
-            else
-                logger.Error($"Unable to submit request for unknown requestId {requestId}");
+
+            // 2. Otherwise try parse CME Fut request
+            var cmeFutRequest = cmeFutureMarketDataRequests.GetValueOrDefault(requestId);
+
+            if (cmeFutRequest != null)
+            {
+                logger.Info($"Submitting CME Future market data request {requestId} ({cmeFutRequest.Contract.Symbol} - {fxRequest.Type})");
+
+                switch (cmeFutRequest.Type)
+                {
+                    case MarketDataRequestType.MarketDataTick:
+                        ibClient.RequestManager.MarketDataRequestManager.RequestCMEFuture(requestId, cmeFutRequest.Contract.Symbol, cmeFutRequest.Contract.Currency, cmeFutRequest.Contract.CurrentExpi);
+                        break;
+                    //case MarketDataRequestType.RtBarBid:
+                    //    ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "BID", true);
+                    //    break;
+                    //case MarketDataRequestType.RtBarMid:
+                    //    ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "MIDPOINT", true);
+                    //    break;
+                    //case MarketDataRequestType.RtBarAsk:
+                    //    ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "ASK", true);
+                    //    break;
+                    default:
+                        logger.Error($"CME Future market data request of type {cmeFutRequest.Type} is not yet supported");
+                        break;
+                }
+
+                cmeFutRequest.Submitted = true;
+
+                Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+
+                return;
+            }
+
+            // Request is unknown
+            logger.Error($"Unable to submit request for unknown requestId {requestId}");
         }
 
         private void SubmitMarketDataRequests(IEnumerable<int> requestIds)
@@ -403,11 +576,14 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void CancelMarketDataRequest(int requestId)
         {
-            if (marketDataRequests.ContainsKey(requestId))
-            {
-                logger.Info($"Requesting cancellation of market data request {requestId} ({marketDataRequests[requestId].Cross} - {marketDataRequests[requestId].Type})");
+            // 1. Try parse FX request
+            var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestId);
 
-                switch (marketDataRequests[requestId].Type)
+            if (fxRequest != null)
+            {
+                logger.Info($"Requesting cancellation of FX market data request {requestId} ({fxRequest.Contract.Cross} - {fxRequest.Type})");
+
+                switch (fxRequest.Type)
                 {
                     case MarketDataRequestType.MarketDataTick:
                         ibClient.RequestManager.MarketDataRequestManager.CancelMarketDataRequest(requestId);
@@ -421,10 +597,39 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         break;
                 }
 
-                marketDataRequests[requestId].Submitted = false;
+                fxRequest.Submitted = false;
+
+                return;
             }
-            else
-                logger.Error($"Unable to cancel request for unknown requestId {requestId}");
+
+            // 2. Otherwise try parse CME Fut request
+            var cmeFutRequest = cmeFutureMarketDataRequests.GetValueOrDefault(requestId);
+
+            if (cmeFutRequest != null)
+            {
+                logger.Info($"Requesting cancellation of CME Future market data request {requestId} ({cmeFutRequest.Contract.Symbol} - {cmeFutRequest.Type})");
+
+                switch (cmeFutRequest.Type)
+                {
+                    case MarketDataRequestType.MarketDataTick:
+                        ibClient.RequestManager.MarketDataRequestManager.CancelMarketDataRequest(requestId);
+                        break;
+                    case MarketDataRequestType.RtBarBid:
+                    case MarketDataRequestType.RtBarMid:
+                    case MarketDataRequestType.RtBarAsk:
+                        ibClient.RequestManager.RealTimeBarsRequestManager.CancelRealTimeBarsRequest(requestId);
+                        break;
+                    default:
+                        break;
+                }
+
+                cmeFutRequest.Submitted = false;
+
+                return;
+            }
+
+            // Request is unknown
+            logger.Error($"Unable to cancel request for unknown requestId {requestId}");
         }
 
         private void CancelMarketDataRequests(IEnumerable<int> requestIds)
@@ -436,25 +641,25 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public void ReplaceMDTicksSubscriptions(IEnumerable<Cross> crosses)
         {
-            ReplaceMarketDataRequests(crosses, new MarketDataRequestType[1] { MarketDataRequestType.MarketDataTick });
+            ReplaceFXMarketDataRequests(crosses, new MarketDataRequestType[1] { MarketDataRequestType.MarketDataTick });
         }
 
         public void ReplaceRTBarsSubscriptions(IEnumerable<Cross> crosses)
         {
-            ReplaceMarketDataRequests(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid });
+            ReplaceFXMarketDataRequests(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid });
         }
 
-        private void ReplaceMarketDataRequests(IEnumerable<Cross> crosses, IEnumerable<MarketDataRequestType> types)
+        private void ReplaceFXMarketDataRequests(IEnumerable<Cross> crosses, IEnumerable<MarketDataRequestType> types)
         {
             if (crosses.IsNullOrEmpty())
                 CancelMarketDataRequests(GetRequestIdsForRequestTypes(types, true));
             else
             {
                 // 1. Cancel requests that were removed
-                CancelMarketDataRequests(marketDataRequests.Where(r => !crosses.Contains(r.Value.Cross) && types.Contains(r.Value.Type) && r.Value.Submitted)?.Select(r => r.Key));
+                CancelMarketDataRequests(fxMarketDataRequests.Where(r => !crosses.Contains(r.Value.Contract.Cross) && types.Contains(r.Value.Type) && r.Value.Submitted)?.Select(r => r.Key));
 
                 // 2. Subscribe newly added requests
-                SubmitMarketDataRequests(marketDataRequests.Where(r => crosses.Contains(r.Value.Cross) && types.Contains(r.Value.Type) && !r.Value.Submitted)?.Select(r => r.Key));
+                SubmitMarketDataRequests(fxMarketDataRequests.Where(r => crosses.Contains(r.Value.Contract.Cross) && types.Contains(r.Value.Type) && !r.Value.Submitted)?.Select(r => r.Key));
             }
         }
 
@@ -464,7 +669,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"Subscribing MD ticks for {string.Join(", ", crosses)}");
 
-                SubmitMarketDataRequests(GetRequestIdsForCrossesAndRequestType(crosses, MarketDataRequestType.MarketDataTick, false));
+                SubmitMarketDataRequests(GetFXRequestIdsForCrossesAndRequestType(crosses, MarketDataRequestType.MarketDataTick, false));
 
                 foreach (var cross in crosses)
                     currentMdTicksSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
@@ -475,18 +680,157 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Subscribing MD ticks for {cross}");
 
-            SubmitMarketDataRequest(GetRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, false));
+            SubmitMarketDataRequest(GetFXRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, false));
 
             currentMdTicksSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
         }
 
-        public void SubscribeFutures()
+        public (bool Success, string Message) SubscribeCMEFutures(IEnumerable<string> symbols)
         {
-            ibClient.RequestManager.MarketDataRequestManager.RequestFuture();
+            try
+            {
+                stopRequestedCt.ThrowIfCancellationRequested();
 
-            //ibClient.RequestManager.RealTimeBarsRequestManager.RequestFuture();
+                if (symbols.IsNullOrEmpty())
+                    throw new ArgumentNullException(nameof(symbols));
 
-            //ibClient.RequestManager.HistoricalDataRequestManager.RequestFuture();
+                foreach (var symbol in symbols)
+                {
+                    // 1. Market data ticks
+                    int requestId = cmeFutureMarketDataRequestsBySymbol.GetValueOrDefault((symbol, MarketDataRequestType.MarketDataTick));
+                    var request = cmeFutureMarketDataRequests.GetValueOrDefault(requestId);
+
+                    if (request != null)
+                    {
+                        ibClient.RequestManager.MarketDataRequestManager.RequestCMEFuture(requestId, request.Contract.Symbol, request.Contract.Currency, request.Contract.CurrentExpi);
+                        request.Submitted = true;
+                        currentCmeFuturesSubscribed.AddOrUpdate((symbol, request.Contract.CurrentExpi), true, (key, oldValue) => true);
+                    }
+                    else
+                        logger.Error($"Failed to locate CME Future market data request for {symbol}");
+
+                    // 2. TODO: RT bars
+                }
+
+                return (true, "");
+            }
+            catch (OperationCanceledException)
+            {
+                string err = "Not subscribing CME Future market data: operation cancelled";
+                logger.Error(err);
+                return (false, err);
+            }
+            catch (ArgumentNullException ex)
+            {
+                string err = $"Not subscribing CME Future market data: missing or invalid parameter {ex.ParamName}";
+                logger.Error(err);
+                return (false, err);
+            }
+            catch (Exception ex)
+            {
+                string err = "Failed to subscribe to CME Futures market data";
+                logger.Error(err, ex);
+                return (false, $"{err}: {ex.Message}");
+            }
+        }
+
+        public (bool Success, string Message) SubscribeCMEFutures(string symbol)
+        {
+            return SubscribeCMEFutures(new string[1] { symbol });
+        }
+
+        public (bool Success, string Message) UnsubscribeCMEFutures(string symbol)
+        {
+            return UnsubscribeCMEFutures(new string[1] { symbol });
+        }
+
+        public (bool Success, string Message) UnsubscribeCMEFutures(IEnumerable<string> symbols)
+        {
+            try
+            {
+                stopRequestedCt.ThrowIfCancellationRequested();
+
+                if (symbols.IsNullOrEmpty())
+                    throw new ArgumentNullException(nameof(symbols));
+
+                foreach (var symbol in symbols)
+                {
+                    // 1. Market data ticks
+                    int requestId = cmeFutureMarketDataRequestsBySymbol.GetValueOrDefault((symbol, MarketDataRequestType.MarketDataTick));
+                    var request = cmeFutureMarketDataRequests.GetValueOrDefault(requestId);
+
+                    if (request != null)
+                    {
+                        ibClient.RequestManager.MarketDataRequestManager.CancelMarketDataRequest(requestId);
+                        request.Submitted = false;
+                        currentCmeFuturesSubscribed.AddOrUpdate((symbol, request.Contract.CurrentExpi), false, (key, oldValue) => false);
+                    }
+                    else
+                        logger.Error($"Failed to locate CME Future market data request for {symbol}");
+
+                    // 2. TODO: RT bars
+                }
+
+                return (true, "");
+            }
+            catch (OperationCanceledException)
+            {
+                string err = "Not unsubscribing CME Future market data: operation cancelled";
+                logger.Error(err);
+                return (false, err);
+            }
+            catch (ArgumentNullException ex)
+            {
+                string err = $"Not unsubscribing CME Future market data: missing or invalid parameter {ex.ParamName}";
+                logger.Error(err);
+                return (false, err);
+            }
+            catch (Exception ex)
+            {
+                string err = "Failed to unsubscribe to CME Futures market data";
+                logger.Error(err, ex);
+                return (false, $"{err}: {ex.Message}");
+            }
+        }
+
+        public (bool Success, string Message) ReplaceCMEFuturesSubscriptions(IEnumerable<string> symbols)
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder("");
+
+                var currentlySubscribed = cmeFutureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Value.Contract.Symbol);
+
+                if (!currentlySubscribed.IsNullOrEmpty() && symbols.IsNullOrEmpty())
+                {
+                    UnsubscribeCMEFutures(currentlySubscribed);
+                    sb.Append($"Unsubscribed all: {string.Join(", ", currentlySubscribed)}");
+                }
+
+                var toUnsubscribe = currentlySubscribed.Except(symbols);
+
+                if (!toUnsubscribe.IsNullOrEmpty())
+                {
+                    UnsubscribeCMEFutures(toUnsubscribe);
+                    sb.Append($"Newly unsubscribed: {string.Join(", ", toUnsubscribe)}; ");
+                }
+
+                var toSubscribe = symbols.Except(currentlySubscribed);
+
+                if (!toSubscribe.IsNullOrEmpty())
+                {
+                    SubscribeCMEFutures(toSubscribe);
+                    sb.Append($"Newly subscribed: {string.Join(", ", toSubscribe)}; ");
+                }
+
+                return (true, sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                string err = "Failed to replace CME Futures subscriptions";
+                logger.Error(err, ex);
+                return (false, $"{err}: {ex.Message}");
+            }
         }
 
         public void SubscribeRTBars(IEnumerable<Cross> crosses)
@@ -495,7 +839,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"Subscribing RT bars for {string.Join(", ", crosses)}");
 
-                SubmitMarketDataRequests(GetRequestIdsForCrossesAndRequestTypes(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, false));
+                SubmitMarketDataRequests(GetFXRequestIdsForCrossesAndRequestTypes(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, false));
 
                 foreach (var cross in crosses)
                     currentRtBarsSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
@@ -506,7 +850,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Subscribing RT bars for {cross}");
 
-            SubmitMarketDataRequests(GetRequestIdsForCrossAndRequestTypes(cross, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, false));
+            SubmitMarketDataRequests(GetFXRequestIdsForCrossAndRequestTypes(cross, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, false));
 
             currentRtBarsSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
         }
@@ -526,7 +870,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"Unsubscribing MD ticks for {string.Join(", ", crosses)}");
 
-                CancelMarketDataRequests(GetRequestIdsForCrossesAndRequestType(crosses, MarketDataRequestType.MarketDataTick, true));
+                CancelMarketDataRequests(GetFXRequestIdsForCrossesAndRequestType(crosses, MarketDataRequestType.MarketDataTick, true));
 
                 foreach (var cross in crosses)
                     currentMdTicksSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
@@ -537,7 +881,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Unsubscribing MD ticks for {cross}");
 
-            CancelMarketDataRequest(GetRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, true));
+            CancelMarketDataRequest(GetFXRequestIdForCrossAndRequestType(cross, MarketDataRequestType.MarketDataTick, true));
 
             currentMdTicksSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
         }
@@ -557,7 +901,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Info($"Unsubscribing RT bars for {string.Join(", ", crosses)}");
 
-                CancelMarketDataRequests(GetRequestIdsForCrossesAndRequestTypes(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
+                CancelMarketDataRequests(GetFXRequestIdsForCrossesAndRequestTypes(crosses, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
 
                 foreach (var cross in crosses)
                     currentRtBarsSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
@@ -568,7 +912,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             logger.Info($"Unsubscribing RT bars for {cross}");
 
-            CancelMarketDataRequests(GetRequestIdsForCrossAndRequestTypes(cross, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
+            CancelMarketDataRequests(GetFXRequestIdsForCrossAndRequestTypes(cross, new MarketDataRequestType[3] { MarketDataRequestType.RtBarAsk, MarketDataRequestType.RtBarBid, MarketDataRequestType.RtBarMid }, true));
 
             currentRtBarsSubscribed.AddOrUpdate(cross, false, (key, oldValue) => false);
         }
@@ -576,7 +920,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private void UnsubscribeAll()
         {
             logger.Info("Unsubscribing all market data requests");
-            CancelMarketDataRequests(marketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key));
+
+            CancelMarketDataRequests(fxMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key));
+            UnsubscribeCMEFutures(cmeFutureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Value.Contract.Symbol));
 
             currentMdTicksSubscribed.Clear();
             currentRtBarsSubscribed.Clear();
@@ -638,9 +984,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     lastMarketDataLostCheck = DateTimeOffset.Now;
                 }
 
-                var subscribed = currentMdTicksSubscribed.ToArray();
-
-                bool needToNotify = subscribed.Count(s => s.Value) > 0;
+                bool needToNotify = NeedToNotify();
 
                 if (needToNotify)
                     MarketDataConnectionLost?.Invoke();
@@ -661,9 +1005,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     lastMarketDataResumedCheck = DateTimeOffset.Now;
                 }
 
-                var subscribed = currentMdTicksSubscribed.ToArray();
-
-                bool needToNotify = subscribed.Count(s => s.Value) > 0;
+                bool needToNotify = NeedToNotify();
 
                 if (needToNotify)
                     MarketDataConnectionResumed?.Invoke();
@@ -674,6 +1016,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return false;
         }
 
+        private bool NeedToNotify()
+        {
+            var tickSubscribed = currentMdTicksSubscribed.ToArray();
+            var rtBarsSubscribed = currentRtBarsSubscribed.ToArray();
+            var cmeFutsSubscribed = currentCmeFuturesSubscribed.ToArray();
+
+            bool needToNotify = tickSubscribed.Count(s => s.Value) > 0 || rtBarsSubscribed.Count(s => s.Value) > 0 || cmeFutsSubscribed.Count(s => s.Value) > 0;
+            return needToNotify;
+        }
+
         public void Dispose()
         {
             logger.Info($"Disposing {nameof(IBMarketDataProvider)}");
@@ -682,18 +1034,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         }
     }
 
-    internal class MarketDataRequest
+    internal class MarketDataRequest<T>
     {
         public int RequestId { get; set; }
-        public Cross Cross { get; private set; }
-        public Contract Contract { get; private set; }
+        public T Contract { get; private set; }
         public MarketDataRequestType Type { get; private set; }
         public bool Submitted { get; set; }
 
-        public MarketDataRequest(int requestId, Cross cross, Contract contract, MarketDataRequestType type)
+        public MarketDataRequest(int requestId, T contract, MarketDataRequestType type)
         {
             RequestId = requestId;
-            Cross = cross;
             Contract = contract;
             Type = type;
             Submitted = false;
@@ -701,7 +1051,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public override string ToString()
         {
-            return $"{RequestId} ({Cross} - {Type})";
+            return $"{RequestId} ({Type})";
+        }
+    }
+
+    internal class FXMarketDataRequest : MarketDataRequest<Contract>
+    {
+        public FXMarketDataRequest(int requestId, Contract contract, MarketDataRequestType type) : base(requestId, contract, type)
+        {
+        }
+    }
+
+    internal class CMEFutureMarketDataRequest : MarketDataRequest<CmeFutureContract>
+    {
+        public CMEFutureMarketDataRequest(int requestId, CmeFutureContract contract, MarketDataRequestType type) : base(requestId, contract, type)
+        {
         }
     }
 

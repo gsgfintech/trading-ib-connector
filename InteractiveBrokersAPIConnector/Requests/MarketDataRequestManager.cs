@@ -60,21 +60,29 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             }
         }
 
-        public void RequestFuture()
+        public (bool Success, string Message) RequestCMEFuture(int requestId, string symbol, Currency currency, DateTime expiry)
         {
-            ClientSocket.reqMarketDataType(3);
-
-            IBApi.Contract contract = new IBApi.Contract()
+            try
             {
-                //ConId = 259130539,
-                Currency = "USD",
-                Exchange = "GLOBEX",
-                LastTradeDateOrContractMonth = "201709",
-                SecType = "FUT",
-                Symbol = "E7"
-            };
+                var contract = new IBApi.Contract()
+                {
+                    Currency = currency.ToString(),
+                    Exchange = "GLOBEX",
+                    LastTradeDateOrContractMonth = expiry.ToString("yyyyMM"),
+                    SecType = "FUT",
+                    Symbol = symbol
+                };
 
-            ClientSocket.reqMktData(25000, contract, "", false, false, null);
+                ClientSocket.reqMktData(requestId, contract, "", false, false, null);
+
+                return (true, "");
+            }
+            catch (Exception ex)
+            {
+                string err = $"Failed to subscribe to CME future ({symbol} - {expiry:yyyyMM}) market data";
+                logger.Error(err, ex);
+                return (false, $"{err}: {ex.Message}");
+            }
         }
 
         /// <summary>
