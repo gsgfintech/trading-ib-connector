@@ -793,6 +793,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
+        public (bool Success, string Message) UnsubscribeCMEFutures()
+        {
+            var currentlySubscribed = cmeFutureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Value.Contract.Symbol);
+
+            if (!currentlySubscribed.IsNullOrEmpty())
+                return (true, "Nothing to unsubscribe");
+            else
+                return UnsubscribeCMEFutures(currentlySubscribed);
+        }
+
         public (bool Success, string Message) ReplaceCMEFuturesSubscriptions(IEnumerable<string> symbols)
         {
             try
@@ -831,6 +841,48 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Error(err, ex);
                 return (false, $"{err}: {ex.Message}");
             }
+        }
+
+        public (bool Success, string Message) SubscribeCMEFuturesRTBars(string symbol)
+        {
+            string msg = "CME Futures RT Bars are not currently supported";
+            logger.Warn(msg);
+            return (true, msg);
+        }
+
+        public (bool Success, string Message) SubscribeCMEFuturesRTBars(IEnumerable<string> symbols)
+        {
+            string msg = "CME Futures RT Bars are not currently supported";
+            logger.Warn(msg);
+            return (true, msg);
+        }
+
+        public (bool Success, string Message) UnsubscribeCMEFuturesRTBars(string symbol)
+        {
+            string msg = "CME Futures RT Bars are not currently supported";
+            logger.Warn(msg);
+            return (true, msg);
+        }
+
+        public (bool Success, string Message) UnsubscribeCMEFuturesRTBars()
+        {
+            string msg = "CME Futures RT Bars are not currently supported";
+            logger.Warn(msg);
+            return (true, msg);
+        }
+
+        public (bool Success, string Message) UnsubscribeCMEFuturesRTBars(IEnumerable<string> symbols)
+        {
+            string msg = "CME Futures RT Bars are not currently supported";
+            logger.Warn(msg);
+            return (true, msg);
+        }
+
+        public (bool Success, string Message) ReplaceCMEFuturesSubscriptionsRTBars(IEnumerable<string> symbols)
+        {
+            string msg = "CME Futures RT Bars are not currently supported";
+            logger.Warn(msg);
+            return (true, msg);
         }
 
         public void SubscribeRTBars(IEnumerable<Cross> crosses)
