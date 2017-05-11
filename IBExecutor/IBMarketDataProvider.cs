@@ -139,6 +139,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void MarketDataSizeTickReceived(int requestID, MarketDataTickType tickType, int size)
         {
+            if (size < 0)
+            {
+                logger.Warn($"Ignoring invalid size tick for request {requestID}: {nameof(tickType)}={tickType} {nameof(size)}={size}");
+                return;
+            }
+
             // 1. Try parse FX request
             var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestID);
 
@@ -186,6 +192,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void MarketDataPriceTickReceived(int requestID, MarketDataTickType tickType, double value, bool canAutoExecute)
         {
+            if (value <= 0)
+            {
+                logger.Warn($"Ignoring invalid price tick for request {requestID}: {nameof(tickType)}={tickType} {nameof(value)}={value}");
+                return;
+            }
+
             // 1. Try parse FX request
             var fxRequest = fxMarketDataRequests.GetValueOrDefault(requestID);
 
@@ -193,7 +205,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 Cross cross = fxRequest.Contract.Cross;
 
-                if (value > 0.0 && interestingPriceTickTypes.Contains(tickType))
+                if (interestingPriceTickTypes.Contains(tickType))
                 {
                     if (logTicks)
                         logger.Debug($"Received price tick data: requestID={requestID}, cross={cross}, type={tickType}, value={value}, canAutoExecute={canAutoExecute}");
