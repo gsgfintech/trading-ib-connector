@@ -183,6 +183,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             if (requestDetails != null)
                                 body = $"No security definition found for request {requestDetails}";
                             break;
+                        case 399:
+                            subject = $"Order {error.RequestID} routed as odd lot";
+                            body = body.Replace("Order Message", $"Order {error.RequestID}").Replace($" (Request {error.RequestID})", "");
+                            level = AlertLevel.INFO;
+                            break;
                         case 201:
                             subject = $"Order {error.RequestID} was rejected";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
