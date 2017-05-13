@@ -78,6 +78,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public event Action TradingConnectionLost;
         public event Action TradingConnectionResumed;
 
+        private FAConfiguration lastKnownFAConfiguration;
+
         internal void NotifyOrderCancelRequestFailed(int orderId, string error)
         {
             error = error ?? "Unknown error";
@@ -491,7 +493,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                                     logger.Info($"Placing order {order.Order.OrderID}: {order.Order}");
 
-                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.Order.OrderID, GetContract(order.Order.Cross), order.Order, account: order.Account, faGroup: order.FAGroup, faAllocationProfileName: order.FAAllocationProfileName);
+                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.Order.OrderID, GetContract(order.Order.Cross), order.Order, account: order.Account, faGroup: order.FAGroup, faAllocationProfile: order.FAAllocationProfile);
 
                                     if (order.Order.Status == PreSubmitted)
                                     {
@@ -996,31 +998,53 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 {
                     if (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close)
                     {
-                        logger.Info($"Will use allocation {DoubleTicketAllocation} for order {order.OrderID} ({order.Origin})");
-                        orderToPlace.FAAllocationProfileName = DoubleTicketAllocation;
+                        FAAllocationProfile allocProfile = null;
 
                         if (faConfiguration != null && !faConfiguration.AllocationProfiles.IsNullOrEmpty())
-                        {
-                            FAAllocationProfile allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == DoubleTicketAllocation);
+                            allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == DoubleTicketAllocation);
 
-                            orderToPlace.Order.AllocationInfo = (allocProfile != null) ? JsonConvert.SerializeObject(allocProfile) : $"{DoubleTicketAllocation} (unknown details)";
+                        if (allocProfile == null)
+                        {
+                            logger.Warn($"Failed to get details of alloc profile {DoubleTicketAllocation} from TWS. Assuming profile of type 'shares'");
+
+                            allocProfile = new FAAllocationProfile()
+                            {
+                                Name = DoubleTicketAllocation,
+                                Type = FAAllocationProfileType.Shares
+                            };
+
+                            orderToPlace.Order.AllocationInfo = $"{DoubleTicketAllocation} (unknown details)";
                         }
                         else
-                            orderToPlace.Order.AllocationInfo = $"{DoubleTicketAllocation} (unknown details)";
+                            orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
+
+                        logger.Info($"Will use allocation {DoubleTicketAllocation} for order {order.OrderID} ({order.Origin})");
+                        orderToPlace.FAAllocationProfile = allocProfile;
                     }
                     else
                     {
-                        logger.Info($"Will use allocation {SingleTicketAllocation} for order {order.OrderID} ({order.Origin})");
-                        orderToPlace.FAAllocationProfileName = SingleTicketAllocation;
+                        FAAllocationProfile allocProfile = null;
 
                         if (faConfiguration != null && !faConfiguration.AllocationProfiles.IsNullOrEmpty())
-                        {
-                            FAAllocationProfile allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == SingleTicketAllocation);
+                            allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == SingleTicketAllocation);
 
-                            orderToPlace.Order.AllocationInfo = (allocProfile != null) ? JsonConvert.SerializeObject(allocProfile) : $"{SingleTicketAllocation} (unknown details)";
+                        if (allocProfile == null)
+                        {
+                            logger.Warn($"Failed to get details of alloc profile {SingleTicketAllocation} from TWS. Assuming profile of type 'shares'");
+
+                            allocProfile = new FAAllocationProfile()
+                            {
+                                Name = SingleTicketAllocation,
+                                Type = FAAllocationProfileType.Shares
+                            };
+
+                            orderToPlace.Order.AllocationInfo = $"{SingleTicketAllocation} (unknown details)";
                         }
                         else
-                            orderToPlace.Order.AllocationInfo = $"{SingleTicketAllocation} (unknown details)";
+                            orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
+
+                        logger.Info($"Will use allocation {SingleTicketAllocation} for order {order.OrderID} ({order.Origin})");
+                        orderToPlace.FAAllocationProfile = allocProfile;
                     }
                 }
                 else
@@ -1246,7 +1270,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                                 OrderSide side = pos.Value > 0 ? SELL : BUY;
 
-                                Order order = await PlaceMarketOrder(pos.Key.Item1, pos.Key.Item2, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", null, origin, null, ct);
+                                Order order = await PlaceMarketOrder(pos.Key.Item1, pos.Key.Item2, side, Math.Abs((int)Math.Floor(pos.Value)), TimeInForce.DAY, "CloseAllPositions", null, origin, Guid.NewGuid().ToString(), ct);
 
                                 if (order != null)
                                 {
@@ -1526,35 +1550,44 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private async Task<FAConfiguration> RefreshFAConfiguration()
         {
-            CancellationTokenSource cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
-
-            var result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
-
-            if (!result.Success && result.Message.Contains("another request is already in progress"))
+            try
             {
-                Task.Delay(TimeSpan.FromSeconds(1.5)).Wait();
-                result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
-            }
+                CancellationTokenSource cts = new CancellationTokenSource();
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            if (result.Success && result.FAConfiguration != null)
-            {
-                var accounts = result.FAConfiguration.AccountAliases.Select(a => a.Account);
+                var result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
 
-                if (accounts.Count() > 1)
-                    logger.Info($"The user connected to this TWS manages {accounts.Count()} accounts ({string.Join(", ", accounts)}): this is an institutional account");
+                if (!result.Success && result.Message.Contains("another request is already in progress"))
+                {
+                    Task.Delay(TimeSpan.FromSeconds(1.5)).Wait();
+                    result = await brokerClient.TwsServiceConnector.FAConfigurationsConnector.RequestFAConfiguration(cts.Token);
+                }
+
+                if (result.Success && result.FAConfiguration != null)
+                {
+                    var accounts = result.FAConfiguration?.AccountAliases.Select(a => a.Account)?.ToArray();
+                    int accountsCount = accounts?.Length ?? 0;
+
+                    if (accountsCount > 1)
+                        logger.Info($"The user connected to this TWS manages {accountsCount} accounts ({string.Join(", ", accounts)}): this is an institutional account");
+                    else
+                        logger.Info($"The user connected to this TWS only manages one account ({accounts?.FirstOrDefault()}): this is an individual account");
+
+                    SetIsInstitutionalAccountFlag(accountsCount > 1);
+
+                    lastKnownFAConfiguration = result.FAConfiguration;
+                }
                 else
-                    logger.Info($"The user connected to this TWS only manages one account ({accounts.FirstOrDefault()}): this is an individual account");
-
-                SetIsInstitutionalAccountFlag(accounts.Count() > 1);
-
-                return result.FAConfiguration;
+                {
+                    logger.Error($"Failed to refresh FA configuration: {result.Message}. Will reuse last known FA config, if any");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                logger.Error($"Failed to refresh FA configuration: { result.Message}");
-                return null;
+                logger.Error("Failed to refresh FA configuration. Will reuse last known FA config, if any", ex);
             }
+
+            return lastKnownFAConfiguration;
         }
 
         private void SetIsInstitutionalAccountFlag(bool value)
@@ -1612,7 +1645,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             public Order Order { get; private set; }
 
             public string Account { get; set; }
-            public string FAAllocationProfileName { get; set; }
+            public FAAllocationProfile FAAllocationProfile { get; set; }
             public FAGroup FAGroup { get; set; }
 
             public OrderToPlace(Order order)

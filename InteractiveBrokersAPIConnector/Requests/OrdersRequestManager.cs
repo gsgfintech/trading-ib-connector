@@ -35,7 +35,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
         /// Use a sequential ID starting with the ID received at the nextValidId() method</param>
         /// <param name="contract">This class contains attributes used to describe the contract</param>
         /// <param name="order">This structure contains the details of the order</param>
-        public void RequestPlaceOrder(int orderID, Contract contract, Order order, string account = null, FAGroup faGroup = null, string faAllocationProfileName = null)
+        public void RequestPlaceOrder(int orderID, Contract contract, Order order, string account = null, FAGroup faGroup = null, FAAllocationProfile faAllocationProfile = null)
         {
             IBApi.Order ibOrder = order.ToIBOrder();
 
@@ -49,8 +49,13 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
                 if (faGroup.DefaultMethod == FAGroupMethod.PctChange)
                     ibOrder.FaPercentage = "100"; // TODO
             }
-            else if (!string.IsNullOrEmpty(faAllocationProfileName))
-                ibOrder.FaProfile = faAllocationProfileName;
+            else if (faAllocationProfile != null)
+            {
+                ibOrder.FaProfile = faAllocationProfile.Name;
+
+                if (faAllocationProfile.Type == FAAllocationProfileType.Shares) // For shares alloc profile we should not specify any order quantity, otherwise IB tries to use a weighted average to calculate the size of each allocation and we end up with orders of unexpected sizes
+                    ibOrder.TotalQuantity = 0;
+            }
 
             ClientSocket?.placeOrder(orderID, contract.ToIBContract(), ibOrder);
         }
