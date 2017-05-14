@@ -4,6 +4,7 @@ using Capital.GSG.FX.Data.Core.OrderData;
 using log4net;
 using Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -53,8 +54,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             {
                 ibOrder.FaProfile = faAllocationProfile.Name;
 
-                if (faAllocationProfile.Type == FAAllocationProfileType.Shares) // For shares alloc profile we should not specify any order quantity, otherwise IB tries to use a weighted average to calculate the size of each allocation and we end up with orders of unexpected sizes
-                    ibOrder.TotalQuantity = 0;
+                if (faAllocationProfile.Type == FAAllocationProfileType.Shares) // For shares alloc profile we should adapt the order quantity, otherwise IB tries to use a weighted average to calculate the size of each allocation and we end up with orders of unexpected sizes
+                    ibOrder.TotalQuantity = faAllocationProfile.Allocations.Select(a => a.Amount).Sum();
             }
 
             ClientSocket?.placeOrder(orderID, contract.ToIBContract(), ibOrder);
