@@ -3,21 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using Capital.GSG.FX.Data.Core.OrderData;
 using Capital.GSG.FX.Data.Core.AccountPortfolio;
+using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
 {
     public static class IBOrderExtensions
     {
-        public static IBApi.Order ToIBOrder(this Order order)
+        public static IBApi.Order ToIBOrder(this Order order, string account, FAGroup faGroup, string faAllocationProfileName)
         {
             if (order == null)
                 return null;
 
-            return new IBApi.Order()
+            var ibOrder = new IBApi.Order()
             {
                 Account = order.Account,
                 OrderId = order.OrderID,
-                PermId = order.PermanentID,
                 Action = order.Side.ToString(),
                 TotalQuantity = order.Quantity,
                 OrderType = OrderTypeToIBString(order.Type),
@@ -33,11 +33,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Extensions
                 Transmit = true,
                 ParentId = order.ParentOrderID ?? 0
             };
-        }
 
-        public static IEnumerable<IBApi.Order> TOIBOrders(this IEnumerable<Order> orders)
-        {
-            return orders?.Select(order => order.ToIBOrder());
+            if (!string.IsNullOrEmpty(account))
+                ibOrder.Account = account;
+            else if (faGroup != null)
+            {
+                ibOrder.FaGroup = faGroup.Name;
+                ibOrder.FaMethod = faGroup.DefaultMethod.ToString();
+
+                if (faGroup.DefaultMethod == FAGroupMethod.PctChange)
+                    ibOrder.FaPercentage = "100"; // TODO
+            }
+            else if (!string.IsNullOrEmpty(faAllocationProfileName))
+                ibOrder.FaProfile = faAllocationProfileName;
+
+            return ibOrder;
         }
 
         public static Order ToOrder(this IBApi.Order ibOrder)

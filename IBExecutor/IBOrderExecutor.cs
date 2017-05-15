@@ -11,7 +11,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using Capital.GSG.FX.Data.Core.MarketData;
 using Capital.GSG.FX.Data.Core.SystemData;
 using Capital.GSG.FX.FXConverter;
 using Capital.GSG.FX.Data.Core.OrderData;
@@ -19,7 +18,6 @@ using Capital.GSG.FX.Trading.Executor.Core;
 using Capital.GSG.FX.Utils.Core;
 using Capital.GSG.FX.Data.Core.WebApi;
 using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
-using static Capital.GSG.FX.Data.Core.FinancialAdvisorsData.CommonFAAllocationProfileNames;
 using Capital.GSG.FX.Data.Core.AccountPortfolio;
 using Newtonsoft.Json;
 using MarketDataService.Connector;
@@ -52,7 +50,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private bool nextValidOrderIdRequested = false;
         private object nextValidOrderIdRequestedLocker = new object();
 
-        // Order queueus
+        // Order queues
         private ConcurrentQueue<OrderToPlace> ordersToPlaceQueue = new ConcurrentQueue<OrderToPlace>();
         private object ordersToPlaceQueueLocker = new object();
         private List<int> ordersPlaced = new List<int>();
@@ -79,6 +77,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         public event Action TradingConnectionResumed;
 
         private FAConfiguration lastKnownFAConfiguration;
+
+        private const string SingleTicketAllocation = "Single";
+        private const string DoubleTicketAllocation = "Double";
 
         internal void NotifyOrderCancelRequestFailed(int orderId, string error)
         {
@@ -174,23 +175,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private IBOrderExecutor(BrokerClient brokerClient, IBClient ibClient, IFxConverter fxConverter, MDConnector mdConnector, ITradingExecutorRunner tradingExecutorRunner, string monitoringEndpoint, CancellationToken stopRequestedCt)
         {
-            if (brokerClient == null)
-                throw new ArgumentNullException(nameof(brokerClient));
-
-            if (ibClient == null)
-                throw new ArgumentNullException(nameof(ibClient));
-
-            if (fxConverter == null)
-                throw new ArgumentNullException(nameof(fxConverter));
-
-            if (mdConnector == null)
-                throw new ArgumentNullException(nameof(mdConnector));
-
             this.stopRequestedCt = stopRequestedCt;
 
-            this.brokerClient = brokerClient;
+            this.brokerClient = brokerClient ?? throw new ArgumentNullException(nameof(brokerClient));
 
-            this.ibClient = ibClient;
+            this.ibClient = ibClient ?? throw new ArgumentNullException(nameof(ibClient));
 
             this.ibClient.ResponseManager.OpenOrdersReceived += OnOpenOrdersReceived;
             this.ibClient.ResponseManager.OrderStatusChangeReceived += OnOrderStatusChangeReceived;
@@ -204,8 +193,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 RequestOpenOrders();
             };
 
-            this.fxConverter = fxConverter;
-            this.mdConnector = mdConnector;
+            this.fxConverter = fxConverter ?? throw new ArgumentNullException(nameof(fxConverter));
+            this.mdConnector = mdConnector ?? throw new ArgumentNullException(nameof(mdConnector));
             this.tradingExecutorRunner = tradingExecutorRunner;
             this.monitoringEndpoint = monitoringEndpoint;
 
@@ -257,7 +246,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                                     logger.Error(err2);
                                     SendError($"Order not cancelled {kvp.Key}", err);
 
-                                    OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null, 0, "Cancelled because unacked for more than 30 seconds");
+                                    OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null);
                                 }
                             }
                         }
@@ -336,9 +325,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             brokerClient.OnAlert(new Alert() { Level = AlertLevel.FATAL, Source = nameof(IBOrderExecutor), Subject = subject, Body = body, ActionUrl = actionUrl, Timestamp = DateTimeOffset.Now, AlertId = Guid.NewGuid().ToString() });
         }
 
-        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, double? filledQuantity, double? remainingQuantity, double? avgFillPrice, int permId, int? parentId, double? lastFillPrice, int clientId, string whyHeld)
+        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, double? filledQuantity, double? remainingQuantity, double? avgFillPrice, long permId, int? parentId, double? lastFillPrice)
         {
-            logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}|clientId:{clientId}");
+            logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}");
 
             if (permId == 0)
             {
@@ -463,7 +452,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void StartOrdersPlacingQueue()
         {
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 try
                 {
@@ -487,13 +476,34 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             OrderToPlace order;
                             if (ordersToPlaceQueue.TryDequeue(out order))
                             {
-                                if (!ordersPlaced.Contains(order.Order.OrderID))
+                                if (order.Order.IsVirtual)
+                                {
+                                    long permId = -1 * long.Parse(DateTimeOffset.Now.ToString("yyyyMMddHHmmss"));
+
+                                    if (order.Order.IsPositionOpening() || order.Order.IsPositionClosing())
+                                    {
+                                        logger.Info($"Notifying of filled virtual order {order.Order.OrderID} ({order.Order})");
+
+                                        double? fillPrice = order.Order.LimitPrice ?? order.Order.StopPrice ?? (await mdConnector.GetLatestMid(order.Order.Cross)).Mid;
+
+                                        OnOrderStatusChangeReceived(order.Order.OrderID, Filled, order.Order.Quantity, 0, fillPrice, permId, order.Order.ParentOrderID, fillPrice);
+                                    }
+                                    else
+                                    {
+                                        logger.Info($"Notifying of submitted virtual order {order.Order.OrderID} ({order.Order})");
+
+                                        order.Order.Status = Submitted;
+
+                                        OnOrderStatusChangeReceived(order.Order.OrderID, Submitted, 0, order.Order.Quantity, null, permId, order.Order.ParentOrderID, null);
+                                    }
+                                }
+                                else if (!ordersPlaced.Contains(order.Order.OrderID))
                                 {
                                     logger.Debug($"OrdersPlacingQueue loop: dequeuing {order.Order.OrderID}");
 
                                     logger.Info($"Placing order {order.Order.OrderID}: {order.Order}");
 
-                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.Order.OrderID, GetContract(order.Order.Cross), order.Order, account: order.Account, faGroup: order.FAGroup, faAllocationProfile: order.FAAllocationProfile);
+                                    ibClient.RequestManager.OrdersRequestManager.RequestPlaceOrder(order.Order.OrderID, GetContract(order.Order.Cross), order.Order, account: order.Account, faGroup: order.FAGroup, faAllocationProfileName: order.FAAllocationProfileName);
 
                                     if (order.Order.Status == PreSubmitted)
                                     {
@@ -996,55 +1006,25 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
                 else if (isInstitutionalAccount)
                 {
-                    if (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close)
+                    string allocName = (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close) ? $"{order.Cross}_{DoubleTicketAllocation}" : $"{order.Cross}_{SingleTicketAllocation}";
+
+                    FAAllocationProfile allocProfile = faConfiguration?.AllocationProfiles?.FirstOrDefault(p => p.Name == allocName) ?? new FAAllocationProfile()
                     {
-                        FAAllocationProfile allocProfile = null;
+                        Allocations = new List<FAAllocation>(),
+                        Name = allocName,
+                        Type = FAAllocationProfileType.Shares
+                    };
 
-                        if (faConfiguration != null && !faConfiguration.AllocationProfiles.IsNullOrEmpty())
-                            allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == DoubleTicketAllocation);
+                    logger.Info($"Will use allocation {allocName} for order {order.OrderID} ({order.Origin})");
+                    orderToPlace.FAAllocationProfileName = allocProfile.Name;
+                    orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
 
-                        if (allocProfile == null)
-                        {
-                            logger.Warn($"Failed to get details of alloc profile {DoubleTicketAllocation} from TWS. Assuming profile of type 'shares'");
+                    orderToPlace.Order.Quantity = allocProfile.Allocations.Select(a => a.Amount).Sum();
 
-                            allocProfile = new FAAllocationProfile()
-                            {
-                                Name = DoubleTicketAllocation,
-                                Type = FAAllocationProfileType.Shares
-                            };
-
-                            orderToPlace.Order.AllocationInfo = $"{DoubleTicketAllocation} (unknown details)";
-                        }
-                        else
-                            orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
-
-                        logger.Info($"Will use allocation {DoubleTicketAllocation} for order {order.OrderID} ({order.Origin})");
-                        orderToPlace.FAAllocationProfile = allocProfile;
-                    }
-                    else
+                    if (orderToPlace.Order.Quantity <= 0)
                     {
-                        FAAllocationProfile allocProfile = null;
-
-                        if (faConfiguration != null && !faConfiguration.AllocationProfiles.IsNullOrEmpty())
-                            allocProfile = faConfiguration.AllocationProfiles.FirstOrDefault(p => p.Name == SingleTicketAllocation);
-
-                        if (allocProfile == null)
-                        {
-                            logger.Warn($"Failed to get details of alloc profile {SingleTicketAllocation} from TWS. Assuming profile of type 'shares'");
-
-                            allocProfile = new FAAllocationProfile()
-                            {
-                                Name = SingleTicketAllocation,
-                                Type = FAAllocationProfileType.Shares
-                            };
-
-                            orderToPlace.Order.AllocationInfo = $"{SingleTicketAllocation} (unknown details)";
-                        }
-                        else
-                            orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
-
-                        logger.Info($"Will use allocation {SingleTicketAllocation} for order {order.OrderID} ({order.Origin})");
-                        orderToPlace.FAAllocationProfile = allocProfile;
+                        logger.Warn($"For order {order.OrderID} the sum of allocations is 0: will place it as a virtual order");
+                        order.IsVirtual = true;
                     }
                 }
                 else
@@ -1645,7 +1625,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             public Order Order { get; private set; }
 
             public string Account { get; set; }
-            public FAAllocationProfile FAAllocationProfile { get; set; }
+            public string FAAllocationProfileName { get; set; }
             public FAGroup FAGroup { get; set; }
 
             public OrderToPlace(Order order)

@@ -169,7 +169,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 135:
                             subject = $"Order {error.RequestID} is not recognized by TWS";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}. Marking it as cancelled";
-                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null);
                             break;
                         case 161:
                             subject = $"Order {error.RequestID} is not cancellable";
@@ -191,7 +191,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 201:
                             subject = $"Order {error.RequestID} was rejected";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
-                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null);
                             break;
                         case 202:
                             subject = $"Order {error.RequestID} was cancelled";
@@ -200,7 +200,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 436:
                             subject = $"Order {error.RequestID} was rejected: missing allocation";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
-                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null, ibClient.ClientID, subject);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null);
                             break;
                         case 1100: // TWS<->IB connection broken
                             subject = error.ErrorCodeDescription;
