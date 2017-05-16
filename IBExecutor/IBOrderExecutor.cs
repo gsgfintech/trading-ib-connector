@@ -1035,7 +1035,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (orderToPlace.Order.Quantity <= 0)
                     {
                         logger.Warn($"For order {order.OrderID} the sum of allocations is 0: will place it as a virtual order");
-                        order.IsVirtual = true;
+                        orderToPlace.Order.IsVirtual = true;
                     }
                 }
                 else
@@ -1594,7 +1594,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
         }
 
-        public async Task<(bool Success, string Message)> FillAnyVirtualOrder(PriceTick priceTick = null, RTBar rtBar = null, CancellationToken ct = default(CancellationToken))
+        public (bool Success, string Message) FillAnyVirtualOrder(PriceTick priceTick = null, RTBar rtBar = null, CancellationToken ct = default(CancellationToken))
         {
             if (priceTick == null && rtBar == null)
             {
@@ -1656,9 +1656,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 }
             }
 
-            string msg = !fillableOrderIds.IsNullOrEmpty() ? $"Filled {fillableOrderIds.Count()} virtual orders: {string.Join(", ", fillableOrderIds)}" : "No fillable virtual order";
+            string msg;
+            if (!fillableOrderIds.IsNullOrEmpty())
+            {
+                msg = $"Filled {fillableOrderIds.Count()} virtual orders: {string.Join(", ", fillableOrderIds)}";
+                logger.Info(msg);
+            }
+            else
+            {
+                msg = "No fillable virtual order";
+                logger.Debug(msg);
+            }
 
-            logger.Info(msg);
             return (true, msg);
         }
 
