@@ -498,7 +498,9 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                                     {
                                         logger.Info($"Notifying of submitted virtual order {order.Order.OrderID} ({order.Order})");
 
-                                        order.Order.PermanentID = permId;
+                                        if (order.Order.PermanentID == 0)
+                                            order.Order.PermanentID = permId;
+
                                         order.Order.Status = Submitted;
 
                                         openVirtualOrders.AddOrUpdate(order.Order.OrderID, order.Order, (key, oldValue) => order.Order);
