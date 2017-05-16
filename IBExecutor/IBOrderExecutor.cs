@@ -351,35 +351,30 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             // 3. Add or update the order for tracking
             Order order = orders.AddOrUpdate(orderId, (id) =>
             {
-                if (permId > 0)
-                {
-                    logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
+                logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
 
-                    Order newOrder = new Order();
-                    newOrder.OrderID = orderId;
-                    newOrder.PermanentID = permId;
-                    newOrder.ParentOrderID = parentId;
-                    newOrder.LastUpdateTime = DateTimeOffset.Now;
+                Order newOrder = new Order();
+                newOrder.OrderID = orderId;
+                newOrder.PermanentID = permId;
+                newOrder.ParentOrderID = parentId;
+                newOrder.LastUpdateTime = DateTimeOffset.Now;
 
-                    newOrder.Status = status ?? Submitted;
+                newOrder.Status = status ?? Submitted;
 
-                    if (status == Submitted)
-                        newOrder.PlacedTime = DateTimeOffset.Now;
-                    else if (status == Filled)
-                        newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
+                if (status == Submitted)
+                    newOrder.PlacedTime = DateTimeOffset.Now;
+                else if (status == Filled)
+                    newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
 
-                    newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
+                newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
 
-                    return newOrder;
-                }
-                else
-                    return null;
+                return newOrder;
             },
             (key, oldValue) =>
             {
                 logger.Info($"Received update notification for order {orderId} ({status})");
 
-                if (permId > 0 && oldValue.PermanentID == 0)
+                if (oldValue.PermanentID == 0)
                     oldValue.PermanentID = permId;
 
                 if (status.HasValue)
@@ -1052,12 +1047,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     orderToPlace.FAAllocationProfileName = allocProfile.Name;
                     orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
 
-                    orderToPlace.Order.Quantity = allocProfile.Allocations.Select(a => a.Amount).Sum();
+                    var quantity = allocProfile.Allocations.Select(a => a.Amount).Sum();
 
-                    if (orderToPlace.Order.Quantity <= 0)
+                    if (quantity <= 0)
                     {
                         logger.Warn($"For order {order.OrderID} the sum of allocations is 0: will place it as a virtual order");
                         orderToPlace.Order.IsVirtual = true;
+                    }
+                    else
+                    {
+                        logger.Info($"Adjusting quantity of order {order.OrderID} from {orderToPlace.Order.Quantity} to {quantity} to match allocations");
+                        orderToPlace.Order.Quantity = quantity;
                     }
                 }
                 else
