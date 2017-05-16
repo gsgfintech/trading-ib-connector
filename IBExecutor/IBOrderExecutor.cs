@@ -21,6 +21,7 @@ using Capital.GSG.FX.Data.Core.FinancialAdvisorsData;
 using Capital.GSG.FX.Data.Core.AccountPortfolio;
 using Newtonsoft.Json;
 using MarketDataService.Connector;
+using Capital.GSG.FX.Data.Core.MarketData;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -44,6 +45,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private Dictionary<Cross, Contract> contracts = new Dictionary<Cross, Contract>();
         private readonly ConcurrentDictionary<int, Order> orders = new ConcurrentDictionary<int, Order>();
+        private readonly ConcurrentDictionary<int, Order> openVirtualOrders = new ConcurrentDictionary<int, Order>();
 
         private int nextValidOrderId = -1;
         private object nextValidOrderIdLocker = new object();
@@ -473,29 +475,38 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         {
                             localCts?.Token.ThrowIfCancellationRequested();
 
-                            OrderToPlace order;
-                            if (ordersToPlaceQueue.TryDequeue(out order))
+                            if (ordersToPlaceQueue.TryDequeue(out OrderToPlace order))
                             {
                                 if (order.Order.IsVirtual)
                                 {
                                     long permId = -1 * long.Parse(DateTimeOffset.Now.ToString("yyyyMMddHHmmss"));
 
-                                    if (order.Order.IsPositionOpening() || order.Order.IsPositionClosing())
+                                    if (order.Order.Type == MARKET || (order.Order.Origin != OrderOrigin.PositionClose_ContLimit && order.Order.Origin != OrderOrigin.PositionClose_ContStop))
                                     {
                                         logger.Info($"Notifying of filled virtual order {order.Order.OrderID} ({order.Order})");
 
-                                        double? fillPrice = order.Order.LimitPrice ?? order.Order.StopPrice ?? (await mdConnector.GetLatestMid(order.Order.Cross)).Mid;
+                                        double? fillPrice;
+
+                                        if (order.Order.Side == BUY)
+                                            fillPrice = order.Order.LastAsk ?? (await mdConnector.GetLatest(order.Order.Cross)).RTBar?.Ask?.Close;
+                                        else
+                                            fillPrice = order.Order.LastBid ?? (await mdConnector.GetLatest(order.Order.Cross)).RTBar?.Bid?.Close;
 
                                         OnOrderStatusChangeReceived(order.Order.OrderID, Filled, order.Order.Quantity, 0, fillPrice, permId, order.Order.ParentOrderID, fillPrice);
                                     }
-                                    else
+                                    else if (order.Order.LimitPrice.HasValue || order.Order.StopPrice.HasValue)
                                     {
                                         logger.Info($"Notifying of submitted virtual order {order.Order.OrderID} ({order.Order})");
 
+                                        order.Order.PermanentID = permId;
                                         order.Order.Status = Submitted;
+
+                                        openVirtualOrders.AddOrUpdate(order.Order.OrderID, order.Order, (key, oldValue) => order.Order);
 
                                         OnOrderStatusChangeReceived(order.Order.OrderID, Submitted, 0, order.Order.Quantity, null, permId, order.Order.ParentOrderID, null);
                                     }
+                                    else
+                                        logger.Error($"Unable to add virtual order {order.Order} because it has no valid limit or stop price");
                                 }
                                 else if (!ordersPlaced.Contains(order.Order.OrderID))
                                 {
@@ -1581,6 +1592,74 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 isInstitutionalAccount = value;
             }
+        }
+
+        public async Task<(bool Success, string Message)> FillAnyVirtualOrder(PriceTick priceTick = null, RTBar rtBar = null, CancellationToken ct = default(CancellationToken))
+        {
+            if (priceTick == null && rtBar == null)
+            {
+                string err = "Unable to check open orders to fill. At least one of the priceTick or rtBar must be not null";
+                logger.Error(err);
+                return (false, err);
+            }
+
+            Cross cross = priceTick?.Cross ?? rtBar.Cross;
+            double? askPrice = (priceTick?.TickType == MarketDataTickType.ASK) ? priceTick.Price : rtBar?.Ask?.Close;
+            double? bidPrice = (priceTick?.TickType == MarketDataTickType.BID) ? priceTick.Price : rtBar?.Bid?.Close;
+
+            if (!askPrice.HasValue && !bidPrice.HasValue)
+            {
+                string err = "Unable to check fillable orders: askPrice and bidPrice are both undefined";
+                logger.Error(err);
+                return (false, err);
+            }
+
+            // 1. Make a copy of the current open orders
+            var virtualOrders = openVirtualOrders.ToArray();
+
+            // 2. Identify any valid order
+            IEnumerable<int> fillableOrderIds = virtualOrders.Select(kvp => kvp.Value).Where(o =>
+            {
+                if (o.Cross != cross)
+                    return false;
+
+                switch (o.Side)
+                {
+                    case BUY:
+                        if (askPrice.HasValue && (o.LimitPrice >= askPrice.Value || o.StopPrice <= askPrice.Value))
+                        {
+                            logger.Info($"Order {o.OrderID} is fillable: Side=BUY|LimitPrice={o.LimitPrice}|StopPrice={o.StopPrice}|LastAsk={askPrice}");
+                            return true;
+                        }
+                        else
+                            return false;
+                    case SELL:
+                        if (bidPrice.HasValue && (o.LimitPrice <= bidPrice.Value || o.StopPrice >= bidPrice.Value))
+                        {
+                            logger.Info($"Order {o.OrderID} is fillable: Side=SELL|LimitPrice={o.LimitPrice}|StopPrice={o.StopPrice}|LastBid={bidPrice}");
+                            return true;
+                        }
+                        else
+                            return false;
+                    default:
+                        return false;
+                }
+            }).Select(o => o.OrderID);
+
+            // 3. Fill orders
+            foreach (int orderId in fillableOrderIds)
+            {
+                if (openVirtualOrders.TryRemove(orderId, out Order orderToFill))
+                {
+                    double? fillPrice = (orderToFill.Side == BUY) ? askPrice : bidPrice;
+                    OnOrderStatusChangeReceived(orderId, Filled, orderToFill.Quantity, 0, fillPrice, orderToFill.PermanentID, orderToFill.ParentOrderID, fillPrice);
+                }
+            }
+
+            string msg = !fillableOrderIds.IsNullOrEmpty() ? $"Filled {fillableOrderIds.Count()} virtual orders: {string.Join(", ", fillableOrderIds)}" : "No fillable virtual order";
+
+            logger.Info(msg);
+            return (true, msg);
         }
 
         public void Dispose()

@@ -5,15 +5,15 @@
     <AssemblyName>Net.Teirlinck.FX.IBAPIConnector</AssemblyName>
     <RootNamespace>Net.Teirlinck.FX.InteractiveBrokersAPI</RootNamespace>
     <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
-    <Version>6.4.0</Version>
+    <Version>6.5.0</Version>
     <Company>GSG Limited</Company>
     <Product>Capital.GSG.FX.IBAPIConnector</Product>
     <PackageId>Capital.GSG.FX.IBAPIConnector</PackageId>
     <Authors>GSG Limited</Authors>
     <Description>Connector lib for IB TWS API</Description>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <AssemblyVersion>6.4.0.0</AssemblyVersion>
-    <FileVersion>6.4.0.0</FileVersion>
+    <AssemblyVersion>6.5.0.0</AssemblyVersion>
+    <FileVersion>6.5.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
