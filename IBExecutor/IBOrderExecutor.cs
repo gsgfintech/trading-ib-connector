@@ -454,7 +454,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void StartOrdersPlacingQueue()
         {
-            Task.Run(async () =>
+            Task.Run(() =>
             {
                 try
                 {
@@ -462,18 +462,18 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     while (true)
                     {
-                        CancellationTokenSource localCts = null;
+                        //CancellationTokenSource localCts = null;
 
-                        if (stopRequestedCt.IsCancellationRequested)
-                        {
-                            // Give it a 5 seconds grace period to drain its queue
-                            localCts = new CancellationTokenSource();
-                            localCts.CancelAfter(TimeSpan.FromSeconds(10));
-                        }
+                        //if (stopRequestedCt.IsCancellationRequested)
+                        //{
+                        //    // Give it a 5 seconds grace period to drain its queue
+                        //    localCts = new CancellationTokenSource();
+                        //    localCts.CancelAfter(TimeSpan.FromSeconds(10));
+                        //}
 
                         while (!ordersToPlaceQueue.IsEmpty)
                         {
-                            localCts?.Token.ThrowIfCancellationRequested();
+                            //localCts?.Token.ThrowIfCancellationRequested();
 
                             if (ordersToPlaceQueue.TryDequeue(out OrderToPlace order))
                             {
@@ -487,10 +487,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                                         double? fillPrice;
 
-                                        if (order.Order.Side == BUY)
-                                            fillPrice = order.Order.LastAsk ?? (await mdConnector.GetLatest(order.Order.Cross)).RTBar?.Ask?.Close;
+                                        if (order.Order.Side == BUY && order.Order.LastAsk.HasValue)
+                                            fillPrice = order.Order.LastAsk;
+                                        else if (order.Order.Side == SELL && order.Order.LastBid.HasValue)
+                                            fillPrice = order.Order.LastBid;
                                         else
-                                            fillPrice = order.Order.LastBid ?? (await mdConnector.GetLatest(order.Order.Cross)).RTBar?.Bid?.Close;
+                                            fillPrice = GetFillPriceFromMDService(order.Order.Cross, order.Order.Side);
+
+                                        if (!fillPrice.HasValue)
+                                            logger.Error($"Failed to determine fill price for virtual order {order.Order.OrderID}");
 
                                         OnOrderStatusChangeReceived(order.Order.OrderID, Filled, order.Order.Quantity, 0, fillPrice, permId, order.Order.ParentOrderID, fillPrice);
                                     }
@@ -544,7 +549,24 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 {
                     logger.Warn("Stopping orders placing queue processing due to stop requested");
                 }
-            }, stopRequestedCt);
+            }/*, stopRequestedCt*/);
+        }
+
+        private double? GetFillPriceFromMDService(Cross cross, OrderSide side)
+        {
+            var latestTask = mdConnector.GetLatest(cross);
+
+            latestTask.Wait();
+
+            if (latestTask.IsCompleted && latestTask.Result.Success)
+            {
+                if (side == BUY)
+                    return latestTask.Result.RTBar.Ask?.Close;
+                else
+                    return latestTask.Result.RTBar.Bid?.Close;
+            }
+
+            return null;
         }
 
         private void StartOrdersCancellingQueue()
@@ -759,7 +781,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 order.LimitPrice = limitPrice;
 
                 // 2. Add the order to the placement queue
-                logger.Debug($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+                logger.Info($"Queuing LIMIT order|Side:{order.Side}|Quantity:{order.Quantity}|LimitPrice:{order.LimitPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
                 var result = await PlaceOrder(order);
 
@@ -809,7 +831,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 order.StopPrice = stopPrice;
 
                 // 2. Add the order to the placement queue
-                logger.Debug($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+                logger.Info($"Queuing STOP order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|StopPrice:{order.StopPrice}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
                 var result = await PlaceOrder(order);
 
@@ -864,7 +886,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 order.Type = MARKET;
 
                 // 2. Add the order to the placement queue
-                logger.Debug($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+                logger.Info($"Queuing MARKET order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
                 var result = await PlaceOrder(order);
 
@@ -915,7 +937,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 order.TrailingAmount = trailingAmount;
 
                 // 2. Add the order to the placement queue
-                logger.Debug($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+                logger.Info($"Queuing TRAILING_MARKET_IF_TOUCHED order|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
                 var result = await PlaceOrder(order);
 
@@ -966,7 +988,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 order.TrailingAmount = trailingAmount;
 
                 // 2. Add the order to the placement queue
-                logger.Debug($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
+                logger.Info($"Queuing TRAILING_STOP order|ID:{order.OrderID}|Cross:{order.Cross}|Side:{order.Side}|Quantity:{order.Quantity}|TrailingAmount:{order.TrailingAmount}|TimeInForce:{order.TimeInForce}|ParentOrderID:{order.ParentOrderID}");
 
                 var result = await PlaceOrder(order);
 
