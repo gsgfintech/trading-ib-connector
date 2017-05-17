@@ -22,6 +22,7 @@ using Capital.GSG.FX.Data.Core.AccountPortfolio;
 using Newtonsoft.Json;
 using MarketDataService.Connector;
 using Capital.GSG.FX.Data.Core.MarketData;
+using System.Text;
 
 namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 {
@@ -1076,6 +1077,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<GenericActionResult> CancelOrder(int orderId, CancellationToken ct = default(CancellationToken))
         {
+            // Handle virtual orders
+            if (orders.TryGetValue(orderId, out Order order) && order.IsVirtual)
+                ReportCancelled(order);
+
             var confirmedCancelled = IsConfirmedCancelled(orderId);
             if (confirmedCancelled.Item1)
             {
@@ -1200,18 +1205,36 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
             await Task.Delay(TimeSpan.FromSeconds(1));
 
+            List<int> cancelledOrders = new List<int>();
+            Dictionary<int, string> failedCancels = new Dictionary<int, string>();
+
             OrderStatusCode[] statusesToCancel = new OrderStatusCode[] { PreSubmitted, Submitted, Inactive };
+
+            var virtualOrdersToCancel = from o in orders.Values
+                                        where crosses.Contains(o.Cross)
+                                        where statusesToCancel.Contains(o.Status)
+                                        where o.IsVirtual
+                                        select o;
+
+            if (!virtualOrdersToCancel.IsNullOrEmpty())
+            {
+                logger.Info($"About to mark {virtualOrdersToCancel.Count()} virtual orders as cancelled: {string.Join(", ", virtualOrdersToCancel.Select(o => o.OrderID))}");
+
+                foreach (var order in virtualOrdersToCancel)
+                    ReportCancelled(order);
+
+                cancelledOrders.AddRange(virtualOrdersToCancel.Select(o => o.OrderID));
+            }
 
             var ordersToCancel = from o in orders.Values
                                  where crosses.Contains(o.Cross)
                                  where statusesToCancel.Contains(o.Status)
+                                 where !o.IsVirtual
                                  select o.OrderID;
 
             if (ordersToCancel.Count() > 0)
             {
                 logger.Warn($"Requesting cancel of all active {string.Join(", ", crosses)} orders on IB: orders {string.Join(", ", ordersToCancel)}");
-
-                Dictionary<int, string> failedCancels = new Dictionary<int, string>();
 
                 foreach (int orderId in ordersToCancel)
                 {
@@ -1222,17 +1245,27 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         logger.Error($"Failed to cancel order {orderId}: {result.Message}");
                         failedCancels.Add(orderId, result.Message);
                     }
+                    else
+                        cancelledOrders.Add(orderId);
 
                     await Task.Delay(TimeSpan.FromSeconds(2));
                 }
-
-                if (failedCancels.IsNullOrEmpty())
-                    return new GenericActionResult(true, $"Successfully cancelled orders {string.Join(", ", ordersToCancel)}");
-                else
-                    return new GenericActionResult(false, $"Failed to cancel some orders: {string.Join(", ", failedCancels.Select(kvp => $"{kvp.Key} ({kvp.Value})"))}");
             }
 
-            return new GenericActionResult(true, "Found no active order to cancel");
+            StringBuilder sb = new StringBuilder("Cancel result:");
+
+            if (!failedCancels.IsNullOrEmpty())
+                sb.AppendLine($"\tFailed: {string.Join(", ", failedCancels.Select(kvp => $"{kvp.Key} ({kvp.Value})"))}");
+
+            if (!cancelledOrders.IsNullOrEmpty())
+                sb.AppendLine($"Success: {string.Join(", ", cancelledOrders)}");
+
+            return new GenericActionResult(failedCancels.IsNullOrEmpty(), sb.ToString());
+        }
+
+        private void ReportCancelled(Order order)
+        {
+            OnOrderStatusChangeReceived(order.OrderID, Cancelled, 0, 0, 0, order.PermanentID, order.ParentOrderID, 0);
         }
 
         public async Task<(bool Success, string Message, Dictionary<Tuple<string, Cross>, double?> ClosedPositions)> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
