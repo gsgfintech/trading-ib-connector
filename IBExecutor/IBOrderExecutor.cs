@@ -479,7 +479,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             {
                                 if (order.Order.IsVirtual)
                                 {
-                                    long permId = -1 * long.Parse(DateTimeOffset.Now.ToString("yyyyMMddHHmmss"));
+                                    long permId = -1 * long.Parse($"{order.Order.OrderID}{DateTimeOffset.Now:yyyyMMddHHmmss}");
 
                                     if (order.Order.Type == MARKET || (order.Order.Origin != OrderOrigin.PositionClose_ContLimit && order.Order.Origin != OrderOrigin.PositionClose_ContStop))
                                     {
