@@ -404,11 +404,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             ordersCancelled.AddOrUpdate(orderId, DateTimeOffset.Now, (key, oldValue) => oldValue);
 
             // 2. Remove it from orders awaiting cancellation dictionary
-            DateTimeOffset discarded;
-            if (ordersAwaitingCancellationConfirmation.TryRemove(orderId, out discarded))
+            if (ordersAwaitingCancellationConfirmation.TryRemove(orderId, out _))
                 logger.Info($"Removed order {orderId} from {nameof(ordersAwaitingCancellationConfirmation)} list");
-            else
-                logger.Error($"Failed to remove order {orderId} from {nameof(ordersAwaitingCancellationConfirmation)} list");
         }
 
         internal void StopTradingStrategyForOrder(int orderId, string message)
