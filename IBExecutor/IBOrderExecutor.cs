@@ -1026,43 +1026,46 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 OrderToPlace orderToPlace = new OrderToPlace(order);
 
-                if (!string.IsNullOrEmpty(order.Account))
+                if (string.IsNullOrEmpty(orderToPlace.Order.AllocationInfo))
                 {
-                    orderToPlace.Account = order.Account;
-
-                    orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(new { SingleAccount = order.Account });
-                }
-                else if (isInstitutionalAccount)
-                {
-                    string allocName = (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close) ? $"{order.Cross}_{DoubleTicketAllocation}" : $"{order.Cross}_{SingleTicketAllocation}";
-
-                    FAAllocationProfile allocProfile = faConfiguration?.AllocationProfiles?.FirstOrDefault(p => p.Name == allocName) ?? new FAAllocationProfile()
+                    if (!string.IsNullOrEmpty(order.Account))
                     {
-                        Allocations = new List<FAAllocation>(),
-                        Name = allocName,
-                        Type = FAAllocationProfileType.Shares
-                    };
+                        orderToPlace.Account = order.Account;
 
-                    logger.Info($"Will use allocation {allocName} for order {order.OrderID} ({order.Origin})");
-                    orderToPlace.FAAllocationProfileName = allocProfile.Name;
-                    orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
-
-                    var quantity = allocProfile.Allocations.Select(a => a.Amount).Sum();
-
-                    if (quantity <= 0)
+                        orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(new { SingleAccount = order.Account });
+                    }
+                    else if (isInstitutionalAccount)
                     {
-                        logger.Warn($"For order {order.OrderID} the sum of allocations is 0: will place it as a virtual order");
-                        orderToPlace.Order.IsVirtual = true;
+                        string allocName = (order.Origin == OrderOrigin.PositionReverse_Open || order.Origin == OrderOrigin.PositionReverse_Close) ? $"{order.Cross}_{DoubleTicketAllocation}" : $"{order.Cross}_{SingleTicketAllocation}";
+
+                        FAAllocationProfile allocProfile = faConfiguration?.AllocationProfiles?.FirstOrDefault(p => p.Name == allocName) ?? new FAAllocationProfile()
+                        {
+                            Allocations = new List<FAAllocation>(),
+                            Name = allocName,
+                            Type = FAAllocationProfileType.Shares
+                        };
+
+                        logger.Info($"Will use allocation {allocName} for order {order.OrderID} ({order.Origin})");
+                        orderToPlace.FAAllocationProfileName = allocProfile.Name;
+                        orderToPlace.Order.AllocationInfo = JsonConvert.SerializeObject(allocProfile);
+
+                        var quantity = allocProfile.Allocations.Select(a => a.Amount).Sum();
+
+                        if (quantity <= 0)
+                        {
+                            logger.Warn($"For order {order.OrderID} the sum of allocations is 0: will place it as a virtual order");
+                            orderToPlace.Order.IsVirtual = true;
+                        }
+                        else
+                        {
+                            logger.Info($"Adjusting quantity of order {order.OrderID} from {orderToPlace.Order.Quantity} to {quantity} to match allocations");
+                            orderToPlace.Order.Quantity = quantity;
+                        }
                     }
                     else
                     {
-                        logger.Info($"Adjusting quantity of order {order.OrderID} from {orderToPlace.Order.Quantity} to {quantity} to match allocations");
-                        orderToPlace.Order.Quantity = quantity;
+                        logger.Info($"Not using allocation for order {order.OrderID}: flag brokerClient.IsInstitutionalAccount isn't raised (value={isInstitutionalAccount}) and no specific account name was specified");
                     }
-                }
-                else
-                {
-                    logger.Info($"Not using allocation for order {order.OrderID}: flag brokerClient.IsInstitutionalAccount isn't raised (value={isInstitutionalAccount}) and no specific account name was specified");
                 }
 
                 logger.Info($"Adding order {order.OrderID} to the ordersToPlace queue");
@@ -1668,59 +1671,64 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 return (false, err);
             }
 
-            // 1. Make a copy of the current open orders
-            var virtualOrders = openVirtualOrders.ToArray();
-
-            // 2. Identify any valid order
-            IEnumerable<int> fillableOrderIds = virtualOrders.Select(kvp => kvp.Value).Where(o =>
-            {
-                if (o.Cross != cross)
-                    return false;
-
-                switch (o.Side)
-                {
-                    case BUY:
-                        if (askPrice.HasValue && (o.LimitPrice >= askPrice.Value || o.StopPrice <= askPrice.Value))
-                        {
-                            logger.Info($"Order {o.OrderID} is fillable: Side=BUY|LimitPrice={o.LimitPrice}|StopPrice={o.StopPrice}|LastAsk={askPrice}");
-                            return true;
-                        }
-                        else
-                            return false;
-                    case SELL:
-                        if (bidPrice.HasValue && (o.LimitPrice <= bidPrice.Value || o.StopPrice >= bidPrice.Value))
-                        {
-                            logger.Info($"Order {o.OrderID} is fillable: Side=SELL|LimitPrice={o.LimitPrice}|StopPrice={o.StopPrice}|LastBid={bidPrice}");
-                            return true;
-                        }
-                        else
-                            return false;
-                    default:
-                        return false;
-                }
-            }).Select(o => o.OrderID);
-
-            // 3. Fill orders
-            foreach (int orderId in fillableOrderIds)
-            {
-                if (openVirtualOrders.TryRemove(orderId, out Order orderToFill))
-                {
-                    double? fillPrice = (orderToFill.Side == BUY) ? askPrice : bidPrice;
-                    OnOrderStatusChangeReceived(orderId, Filled, orderToFill.Quantity, 0, fillPrice, orderToFill.PermanentID, orderToFill.ParentOrderID, fillPrice);
-                }
-            }
-
             string msg;
-            if (!fillableOrderIds.IsNullOrEmpty())
+
+            // 1. Make a copy of the current open orders
+            var virtualOrders = openVirtualOrders.ToArray().Where(o => o.Value.Cross == cross).Select(o => o.Value);
+
+            if (!virtualOrders.IsNullOrEmpty())
             {
-                msg = $"Filled {fillableOrderIds.Count()} virtual orders: {string.Join(", ", fillableOrderIds)}";
-                logger.Info(msg);
+                logger.Info($"Checking fillability for open virtual orders: {string.Join(", ", virtualOrders.Select(o => o.OrderID))} (bid={bidPrice}, ask={askPrice})");
+
+                // 2. Identify any valid order
+                IEnumerable<int> fillableOrderIds = virtualOrders.Where(o =>
+                {
+                    switch (o.Side)
+                    {
+                        case BUY:
+                            if (askPrice.HasValue && (o.LimitPrice >= askPrice.Value || o.StopPrice <= askPrice.Value))
+                            {
+                                logger.Info($"Order {o.OrderID} is fillable: Side=BUY|LimitPrice={o.LimitPrice}|StopPrice={o.StopPrice}|LastAsk={askPrice}");
+                                return true;
+                            }
+                            else
+                                return false;
+                        case SELL:
+                            if (bidPrice.HasValue && (o.LimitPrice <= bidPrice.Value || o.StopPrice >= bidPrice.Value))
+                            {
+                                logger.Info($"Order {o.OrderID} is fillable: Side=SELL|LimitPrice={o.LimitPrice}|StopPrice={o.StopPrice}|LastBid={bidPrice}");
+                                return true;
+                            }
+                            else
+                                return false;
+                        default:
+                            return false;
+                    }
+                }).Select(o => o.OrderID);
+
+                // 3. Fill orders
+                foreach (int orderId in fillableOrderIds)
+                {
+                    if (openVirtualOrders.TryRemove(orderId, out Order orderToFill))
+                    {
+                        double? fillPrice = (orderToFill.Side == BUY) ? askPrice : bidPrice;
+                        OnOrderStatusChangeReceived(orderId, Filled, orderToFill.Quantity, 0, fillPrice, orderToFill.PermanentID, orderToFill.ParentOrderID, fillPrice);
+                    }
+                }
+
+                if (!fillableOrderIds.IsNullOrEmpty())
+                {
+                    msg = $"Filled {fillableOrderIds.Count()} virtual orders: {string.Join(", ", fillableOrderIds)}";
+                    logger.Info(msg);
+                }
+                else
+                {
+                    msg = "No fillable virtual order";
+                    logger.Debug(msg);
+                }
             }
             else
-            {
-                msg = "No fillable virtual order";
-                logger.Debug(msg);
-            }
+                msg = $"No open {cross} virtual order";
 
             return (true, msg);
         }
