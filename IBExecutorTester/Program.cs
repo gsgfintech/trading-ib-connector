@@ -91,27 +91,20 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 #endregion
 
                 #region Load IB CME Future Contracts
-                // TODO: load from backend
+                var ibFutContractsResult = await backendConnector.IBFutureContractsConnector.GetAll();
 
-                //var ibCmeFutContractsResult = await backendConnector.cme.GetAll();
-
-                //if (!ibContractsResult.Success)
-                //{
-                //    logger.Error("Failed to load IB FX contracts list");
-                //    return;
-                //}
-
-                List<CmeFutureContract> ibCmeFuturesContracts = new List<CmeFutureContract>()
+                if (!ibFutContractsResult.Success)
                 {
-                    new CmeFutureContract() { Currency = Currency.USD, CurrentExpi = new DateTime(2017, 6, 19), Description = "GBPUSD", Symbol = "M6B" }
-                };
+                    logger.Error("Failed to load IB Future contracts list");
+                    return;
+                }
                 #endregion
 
                 IBTestTradingExecutorRunner tradingExecutorRunner = new IBTestTradingExecutorRunner();
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContractsResult.Contracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token, ibCmeFuturesContracts);
+                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContractsResult.Contracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token, ibFutContractsResult.Contracts);
                 brokerClient.StopComplete += (() => stopCompleteEvent.Set());
                 brokerClient.AlertReceived += (alert) =>
                 {

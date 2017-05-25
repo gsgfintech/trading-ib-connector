@@ -67,7 +67,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private Timer twsRestartTimer = null;
         private object twsRestartTimerLocker = new object();
 
-        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, TwsServiceConnector twsServiceConnector, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<CmeFutureContract> ibCmeFutureContracts = null)
+        public BrokerClient(IBrokerClientType clientType, ITradingExecutorRunner tradingExecutorRunner, TwsClientConfig clientConfig, TwsServiceConnector twsServiceConnector, IFxConverter fxConverter, MDConnector mdConnector, IEnumerable<Contract> ibContracts, IEnumerable<APIErrorCode> ibApiErrorCodes, string monitoringEndpoint, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<FutureContract> ibFutureContracts = null)
         {
             brokerClientType = clientType;
             clientName = clientConfig.Name;
@@ -94,7 +94,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Setup broker client complete. Wait for 2 seconds before setting up executors");
             Task.Delay(TimeSpan.FromSeconds(2)).Wait();
 
-            SetupExecutors(fxConverter, mdConnector, logTicks, stopRequestedCt, ibContracts, ibCmeFutureContracts);
+            SetupExecutors(fxConverter, mdConnector, logTicks, stopRequestedCt, ibContracts, ibFutureContracts);
         }
 
         //private void ManagedAccountsListReceived(string accountsStr)
@@ -118,7 +118,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         //    }
         //}
 
-        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts, IEnumerable<CmeFutureContract> ibCmeFutureContracts)
+        private void SetupExecutors(IFxConverter fxConverter, MDConnector mdConnector, bool logTicks, CancellationToken stopRequestedCt, IEnumerable<Contract> ibContracts, IEnumerable<FutureContract> ibFutureContracts)
         {
             if (brokerClientType != IBrokerClientType.MarketData)
             {
@@ -133,7 +133,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 logger.Info("Setting up market data provider and news bulletins provider");
 
                 historicalDataProvider = new IBHistoricalDataProvider(ibClient, ibContracts, stopRequestedCt);
-                marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, ibCmeFutureContracts, logTicks, stopRequestedCt);
+                marketDataProvider = new IBMarketDataProvider(this, ibClient, ibContracts, ibFutureContracts, logTicks, stopRequestedCt);
                 newsProvider = new IBNewsProvider(ibClient, stopRequestedCt);
                 newsBulletinProvider = new IBNewsBulletinProvider(ibClient);
             }
