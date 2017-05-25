@@ -44,12 +44,12 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         internal const string ClientId = "d5a07c51-59ff-450b-becb-c5528ba5c889";
         internal const string AppKey = "O4na814WZvUizvt1+lAXXXd17F+p3B7O3yhxzr//kU4=";
-        internal const string MonitorBackendAddress = "https://stratedgeme-monitor-qa-backend.azurewebsites.net";
-        internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-qa-backend";
+        internal const string MonitorBackendAddress = "https://stratedgeme-monitor-dev-backend.azurewebsites.net";
+        internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-dev-backend";
         internal const string MarketDataServiceAddress = "https://tryphon.gsg.capital:10204";
         internal const string MarketDataServiceAppUri = "https://gsgfintech.com/market-data-service";
-        internal const string TwsServiceBackendAddress = "https://gsg-srv-3.gsg.capital:10202";
-        internal const string TwsServiceBackendAppUri = "https://gsgfintech.com/tws-service-qa";
+        internal const string TwsServiceBackendAddress = "https://tryphon.gsg.capital:10202";
+        internal const string TwsServiceBackendAppUri = "https://gsgfintech.com/tws-service-dev";
 
         static void Main(string[] args)
         {
