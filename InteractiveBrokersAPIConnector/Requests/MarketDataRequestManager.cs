@@ -60,15 +60,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Requests
             }
         }
 
-        public (bool Success, string Message) RequestCMEFuture(int requestId, string symbol, Currency currency, DateTime expiry)
+        public (bool Success, string Message) RequestFuture(int requestId, string exchange, string symbol, double multiplier, Currency currency, DateTime expiry)
         {
             try
             {
                 var contract = new IBApi.Contract()
                 {
                     Currency = currency.ToString(),
-                    Exchange = "GLOBEX",
+                    Exchange = exchange,
                     LastTradeDateOrContractMonth = expiry.ToString("yyyyMM"),
+                    Multiplier = multiplier.ToString(),
                     SecType = "FUT",
                     Symbol = symbol
                 };

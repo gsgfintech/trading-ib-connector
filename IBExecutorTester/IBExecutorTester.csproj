@@ -261,8 +261,8 @@
       <HintPath>..\packages\System.Xml.XmlDocument.4.3.0\lib\net46\System.Xml.XmlDocument.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="TradingExecutor.Core, Version=2.5.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\TradingExecutor.Core.2.5.1\lib\net46\TradingExecutor.Core.dll</HintPath>
+    <Reference Include="TradingExecutor.Core, Version=2.6.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TradingExecutor.Core.2.6.0\lib\net46\TradingExecutor.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

@@ -23,7 +23,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private readonly Dictionary<int, FXMarketDataRequest> fxMarketDataRequests = new Dictionary<int, FXMarketDataRequest>();
 
         private readonly Dictionary<int, FutureMarketDataRequest> futureMarketDataRequests = new Dictionary<int, FutureMarketDataRequest>();
-        private readonly Dictionary<(string Symbol, MarketDataRequestType Type), int> futureMarketDataRequestsBySymbol = new Dictionary<(string Symbol, MarketDataRequestType Type), int>();
+        private readonly Dictionary<(string Exchange, string Symbol, double Multiplier, MarketDataRequestType Type), int> futureMarketDataRequestsBySymbol = new Dictionary<(string Exchange, string Symbol, double Multiplier, MarketDataRequestType Type), int>();
 
         private readonly ConcurrentDictionary<Cross, RTBar> currentRtBars = new ConcurrentDictionary<Cross, RTBar>();
         private readonly ConcurrentDictionary<(string Symbol, DateTime Expiry), FutMarketDataTick> currentFutureTicks = new ConcurrentDictionary<(string Symbol, DateTime Expiry), FutMarketDataTick>();
@@ -38,7 +38,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private ConcurrentDictionary<Cross, bool> currentMdTicksSubscribed = new ConcurrentDictionary<Cross, bool>();
         private ConcurrentDictionary<Cross, bool> currentRtBarsSubscribed = new ConcurrentDictionary<Cross, bool>();
-        private ConcurrentDictionary<(string Symbol, DateTime Expiry), bool> currentCmeFuturesSubscribed = new ConcurrentDictionary<(string Symbol, DateTime Expiry), bool>();
+        private ConcurrentDictionary<(string Exchange, string Symbol, double Multiplier, DateTime Expiry), bool> currentFuturesSubscribed = new ConcurrentDictionary<(string Exchange, string Symbol, double Multiplier, DateTime Expiry), bool>();
 
         private DateTimeOffset lastMarketDataLostCheck = DateTimeOffset.MinValue;
         private object lastMarketDataLostCheckLocker = new object();
@@ -56,17 +56,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         internal IBMarketDataProvider(BrokerClient brokerClient, IBClient ibClient, IEnumerable<Contract> ibContracts, IEnumerable<FutureContract> ibFutContracts, bool logTicks, CancellationToken stopRequestedCt)
         {
-            if (brokerClient == null)
-                throw new ArgumentNullException(nameof(brokerClient));
-
-            if (ibClient == null)
-                throw new ArgumentNullException(nameof(ibClient));
-
-            this.brokerClient = brokerClient;
+            this.brokerClient = brokerClient ?? throw new ArgumentNullException(nameof(brokerClient));
 
             this.stopRequestedCt = stopRequestedCt;
 
-            this.ibClient = ibClient;
+            this.ibClient = ibClient ?? throw new ArgumentNullException(nameof(ibClient));
 
             this.ibClient.IBConnectionLost += () =>
             {
@@ -121,7 +115,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 foreach (var contract in ibFutureContracts)
                 {
                     futureMarketDataRequests.Add(counter + 0, new FutureMarketDataRequest(counter + 0, contract, MarketDataRequestType.MarketDataTick));
-                    futureMarketDataRequestsBySymbol.Add((contract.Symbol, MarketDataRequestType.MarketDataTick), counter + 0);
+                    futureMarketDataRequestsBySymbol.Add((contract.Exchange, contract.Symbol, contract.Multiplier, MarketDataRequestType.MarketDataTick), counter + 0);
 
                     // TODO : RT Bars requests
 
@@ -541,16 +535,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
 
             // 2. Otherwise try parse CME Fut request
-            var cmeFutRequest = futureMarketDataRequests.GetValueOrDefault(requestId);
+            var futRequest = futureMarketDataRequests.GetValueOrDefault(requestId);
 
-            if (cmeFutRequest != null)
+            if (futRequest != null)
             {
-                logger.Info($"Submitting CME Future market data request {requestId} ({cmeFutRequest.Contract.Symbol} - {fxRequest.Type})");
+                logger.Info($"Submitting CME Future market data request {requestId} ({futRequest.Contract.Symbol} - {fxRequest.Type})");
 
-                switch (cmeFutRequest.Type)
+                switch (futRequest.Type)
                 {
                     case MarketDataRequestType.MarketDataTick:
-                        ibClient.RequestManager.MarketDataRequestManager.RequestCMEFuture(requestId, cmeFutRequest.Contract.Symbol, cmeFutRequest.Contract.Currency, cmeFutRequest.Contract.CurrentExpi);
+                        ibClient.RequestManager.MarketDataRequestManager.RequestFuture(requestId, futRequest.Contract.Exchange, futRequest.Contract.Symbol, futRequest.Contract.Multiplier, futRequest.Contract.Currency, futRequest.Contract.CurrentExpi);
                         break;
                     //case MarketDataRequestType.RtBarBid:
                     //    ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "BID", true);
@@ -562,11 +556,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     //    ibClient.RequestManager.RealTimeBarsRequestManager.RequestRealTimeBars(requestId, fxRequest.Contract, "ASK", true);
                     //    break;
                     default:
-                        logger.Error($"CME Future market data request of type {cmeFutRequest.Type} is not yet supported");
+                        logger.Error($"CME Future market data request of type {futRequest.Type} is not yet supported");
                         break;
                 }
 
-                cmeFutRequest.Submitted = true;
+                futRequest.Submitted = true;
 
                 Task.Delay(TimeSpan.FromSeconds(1)).Wait();
 
@@ -697,29 +691,29 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             currentMdTicksSubscribed.AddOrUpdate(cross, true, (key, oldValue) => true);
         }
 
-        public (bool Success, string Message) SubscribeCMEFutures(IEnumerable<string> symbols)
+        public (bool Success, string Message) SubscribeFutures(IEnumerable<(string Exchange, string Symbol, double Multiplier)> futures)
         {
             try
             {
                 stopRequestedCt.ThrowIfCancellationRequested();
 
-                if (symbols.IsNullOrEmpty())
-                    throw new ArgumentNullException(nameof(symbols));
+                if (futures.IsNullOrEmpty())
+                    throw new ArgumentNullException(nameof(futures));
 
-                foreach (var symbol in symbols)
+                foreach (var future in futures)
                 {
                     // 1. Market data ticks
-                    int requestId = futureMarketDataRequestsBySymbol.GetValueOrDefault((symbol, MarketDataRequestType.MarketDataTick));
+                    int requestId = futureMarketDataRequestsBySymbol.GetValueOrDefault((future.Exchange, future.Symbol, future.Multiplier, MarketDataRequestType.MarketDataTick));
                     var request = futureMarketDataRequests.GetValueOrDefault(requestId);
 
                     if (request != null)
                     {
-                        ibClient.RequestManager.MarketDataRequestManager.RequestCMEFuture(requestId, request.Contract.Symbol, request.Contract.Currency, request.Contract.CurrentExpi);
+                        ibClient.RequestManager.MarketDataRequestManager.RequestFuture(requestId, request.Contract.Exchange, request.Contract.Symbol, request.Contract.Multiplier, request.Contract.Currency, request.Contract.CurrentExpi);
                         request.Submitted = true;
-                        currentCmeFuturesSubscribed.AddOrUpdate((symbol, request.Contract.CurrentExpi), true, (key, oldValue) => true);
+                        currentFuturesSubscribed.AddOrUpdate((future.Exchange, future.Symbol, future.Multiplier, request.Contract.CurrentExpi), true, (key, oldValue) => true);
                     }
                     else
-                        logger.Error($"Failed to locate CME Future market data request for {symbol}");
+                        logger.Error($"Failed to locate Future market data request for {future}");
 
                     // 2. TODO: RT bars
                 }
@@ -728,57 +722,57 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
             catch (OperationCanceledException)
             {
-                string err = "Not subscribing CME Future market data: operation cancelled";
+                string err = "Not subscribing Future market data: operation cancelled";
                 logger.Error(err);
                 return (false, err);
             }
             catch (ArgumentNullException ex)
             {
-                string err = $"Not subscribing CME Future market data: missing or invalid parameter {ex.ParamName}";
+                string err = $"Not subscribing Future market data: missing or invalid parameter {ex.ParamName}";
                 logger.Error(err);
                 return (false, err);
             }
             catch (Exception ex)
             {
-                string err = "Failed to subscribe to CME Futures market data";
+                string err = "Failed to subscribe to Futures market data";
                 logger.Error(err, ex);
                 return (false, $"{err}: {ex.Message}");
             }
         }
 
-        public (bool Success, string Message) SubscribeCMEFutures(string symbol)
+        public (bool Success, string Message) SubscribeFutures(string exchange, string symbol, double multiplier)
         {
-            return SubscribeCMEFutures(new string[1] { symbol });
+            return SubscribeFutures(new(string, string, double)[1] { (exchange, symbol, multiplier) });
         }
 
-        public (bool Success, string Message) UnsubscribeCMEFutures(string symbol)
+        public (bool Success, string Message) UnsubscribeFutures(string exchange, string symbol, double multiplier)
         {
-            return UnsubscribeCMEFutures(new string[1] { symbol });
+            return UnsubscribeFutures(new(string, string, double)[1] { (exchange, symbol, multiplier) });
         }
 
-        public (bool Success, string Message) UnsubscribeCMEFutures(IEnumerable<string> symbols)
+        public (bool Success, string Message) UnsubscribeFutures(IEnumerable<(string Exchange, string Symbol, double Multiplier)> futures)
         {
             try
             {
                 stopRequestedCt.ThrowIfCancellationRequested();
 
-                if (symbols.IsNullOrEmpty())
-                    throw new ArgumentNullException(nameof(symbols));
+                if (futures.IsNullOrEmpty())
+                    throw new ArgumentNullException(nameof(futures));
 
-                foreach (var symbol in symbols)
+                foreach (var future in futures)
                 {
                     // 1. Market data ticks
-                    int requestId = futureMarketDataRequestsBySymbol.GetValueOrDefault((symbol, MarketDataRequestType.MarketDataTick));
+                    int requestId = futureMarketDataRequestsBySymbol.GetValueOrDefault((future.Exchange, future.Symbol, future.Multiplier, MarketDataRequestType.MarketDataTick));
                     var request = futureMarketDataRequests.GetValueOrDefault(requestId);
 
                     if (request != null)
                     {
                         ibClient.RequestManager.MarketDataRequestManager.CancelMarketDataRequest(requestId);
                         request.Submitted = false;
-                        currentCmeFuturesSubscribed.AddOrUpdate((symbol, request.Contract.CurrentExpi), false, (key, oldValue) => false);
+                        currentFuturesSubscribed.AddOrUpdate((future.Exchange, future.Symbol, future.Multiplier, request.Contract.CurrentExpi), false, (key, oldValue) => false);
                     }
                     else
-                        logger.Error($"Failed to locate CME Future market data request for {symbol}");
+                        logger.Error($"Failed to locate Future market data request for {future}");
 
                     // 2. TODO: RT bars
                 }
@@ -787,61 +781,61 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
             catch (OperationCanceledException)
             {
-                string err = "Not unsubscribing CME Future market data: operation cancelled";
+                string err = "Not unsubscribing Future market data: operation cancelled";
                 logger.Error(err);
                 return (false, err);
             }
             catch (ArgumentNullException ex)
             {
-                string err = $"Not unsubscribing CME Future market data: missing or invalid parameter {ex.ParamName}";
+                string err = $"Not unsubscribing Future market data: missing or invalid parameter {ex.ParamName}";
                 logger.Error(err);
                 return (false, err);
             }
             catch (Exception ex)
             {
-                string err = "Failed to unsubscribe to CME Futures market data";
+                string err = "Failed to unsubscribe to Futures market data";
                 logger.Error(err, ex);
                 return (false, $"{err}: {ex.Message}");
             }
         }
 
-        public (bool Success, string Message) UnsubscribeCMEFutures()
+        public (bool Success, string Message) UnsubscribeFutures()
         {
-            var currentlySubscribed = futureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Value.Contract.Symbol);
+            var currentlySubscribed = futureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => (r.Value.Contract.Exchange, r.Value.Contract.Symbol, r.Value.Contract.Multiplier));
 
             if (!currentlySubscribed.IsNullOrEmpty())
                 return (true, "Nothing to unsubscribe");
             else
-                return UnsubscribeCMEFutures(currentlySubscribed);
+                return UnsubscribeFutures(currentlySubscribed);
         }
 
-        public (bool Success, string Message) ReplaceCMEFuturesSubscriptions(IEnumerable<string> symbols)
+        public (bool Success, string Message) ReplaceFuturesSubscriptions(IEnumerable<(string Exchange, string Symbol, double Multiplier)> futures)
         {
             try
             {
                 StringBuilder sb = new StringBuilder("");
 
-                var currentlySubscribed = futureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Value.Contract.Symbol);
+                var currentlySubscribed = futureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => (r.Value.Contract.Exchange, r.Value.Contract.Symbol, r.Value.Contract.Multiplier));
 
-                if (!currentlySubscribed.IsNullOrEmpty() && symbols.IsNullOrEmpty())
+                if (!currentlySubscribed.IsNullOrEmpty() && futures.IsNullOrEmpty())
                 {
-                    UnsubscribeCMEFutures(currentlySubscribed);
+                    UnsubscribeFutures(currentlySubscribed);
                     sb.Append($"Unsubscribed all: {string.Join(", ", currentlySubscribed)}");
                 }
 
-                var toUnsubscribe = currentlySubscribed.Except(symbols);
+                var toUnsubscribe = currentlySubscribed.Except(futures);
 
                 if (!toUnsubscribe.IsNullOrEmpty())
                 {
-                    UnsubscribeCMEFutures(toUnsubscribe);
+                    UnsubscribeFutures(toUnsubscribe);
                     sb.Append($"Newly unsubscribed: {string.Join(", ", toUnsubscribe)}; ");
                 }
 
-                var toSubscribe = symbols.Except(currentlySubscribed);
+                var toSubscribe = futures.Except(currentlySubscribed);
 
                 if (!toSubscribe.IsNullOrEmpty())
                 {
-                    SubscribeCMEFutures(toSubscribe);
+                    SubscribeFutures(toSubscribe);
                     sb.Append($"Newly subscribed: {string.Join(", ", toSubscribe)}; ");
                 }
 
@@ -849,50 +843,50 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             }
             catch (Exception ex)
             {
-                string err = "Failed to replace CME Futures subscriptions";
+                string err = "Failed to replace Futures subscriptions";
                 logger.Error(err, ex);
                 return (false, $"{err}: {ex.Message}");
             }
         }
 
-        public (bool Success, string Message) SubscribeCMEFuturesRTBars(string symbol)
+        public (bool Success, string Message) SubscribeFuturesRTBars(string exchange, string symbol, double multiplier)
         {
-            string msg = "CME Futures RT Bars are not currently supported";
+            string msg = "Futures RT Bars are not currently supported";
             logger.Warn(msg);
             return (true, msg);
         }
 
-        public (bool Success, string Message) SubscribeCMEFuturesRTBars(IEnumerable<string> symbols)
+        public (bool Success, string Message) SubscribeFuturesRTBars(IEnumerable<(string Exchange, string Symbol, double Multiplier)> futures)
         {
-            string msg = "CME Futures RT Bars are not currently supported";
+            string msg = "Futures RT Bars are not currently supported";
             logger.Warn(msg);
             return (true, msg);
         }
 
-        public (bool Success, string Message) UnsubscribeCMEFuturesRTBars(string symbol)
+        public (bool Success, string Message) UnsubscribeFuturesRTBars(string exchange, string symbol, double multiplier)
         {
-            string msg = "CME Futures RT Bars are not currently supported";
+            string msg = "Futures RT Bars are not currently supported";
             logger.Warn(msg);
             return (true, msg);
         }
 
-        public (bool Success, string Message) UnsubscribeCMEFuturesRTBars()
+        public (bool Success, string Message) UnsubscribeFuturesRTBars()
         {
-            string msg = "CME Futures RT Bars are not currently supported";
+            string msg = "Futures RT Bars are not currently supported";
             logger.Warn(msg);
             return (true, msg);
         }
 
-        public (bool Success, string Message) UnsubscribeCMEFuturesRTBars(IEnumerable<string> symbols)
+        public (bool Success, string Message) UnsubscribeFuturesRTBars(IEnumerable<(string Exchange, string Symbol, double Multiplier)> futures)
         {
-            string msg = "CME Futures RT Bars are not currently supported";
+            string msg = "Futures RT Bars are not currently supported";
             logger.Warn(msg);
             return (true, msg);
         }
 
-        public (bool Success, string Message) ReplaceCMEFuturesSubscriptionsRTBars(IEnumerable<string> symbols)
+        public (bool Success, string Message) ReplaceFuturesSubscriptionsRTBars(IEnumerable<(string Exchange, string Symbol, double Multiplier)> futures)
         {
-            string msg = "CME Futures RT Bars are not currently supported";
+            string msg = "Futures RT Bars are not currently supported";
             logger.Warn(msg);
             return (true, msg);
         }
@@ -986,7 +980,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             logger.Info("Unsubscribing all market data requests");
 
             CancelMarketDataRequests(fxMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Key));
-            UnsubscribeCMEFutures(futureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => r.Value.Contract.Symbol));
+            UnsubscribeFutures(futureMarketDataRequests.Where(r => r.Value.Submitted).Select(r => (r.Value.Contract.Exchange, r.Value.Contract.Symbol, r.Value.Contract.Multiplier)));
 
             currentMdTicksSubscribed.Clear();
             currentRtBarsSubscribed.Clear();
@@ -1084,7 +1078,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         {
             var tickSubscribed = currentMdTicksSubscribed.ToArray();
             var rtBarsSubscribed = currentRtBarsSubscribed.ToArray();
-            var cmeFutsSubscribed = currentCmeFuturesSubscribed.ToArray();
+            var cmeFutsSubscribed = currentFuturesSubscribed.ToArray();
 
             bool needToNotify = tickSubscribed.Count(s => s.Value) > 0 || rtBarsSubscribed.Count(s => s.Value) > 0 || cmeFutsSubscribed.Count(s => s.Value) > 0;
             return needToNotify;
