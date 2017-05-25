@@ -44,8 +44,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         internal const string ClientId = "d5a07c51-59ff-450b-becb-c5528ba5c889";
         internal const string AppKey = "O4na814WZvUizvt1+lAXXXd17F+p3B7O3yhxzr//kU4=";
-        internal const string MonitorBackendAddress = "https://stratedgeme-monitor-dev-backend.azurewebsites.net";
-        internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-dev-backend";
+        internal const string MonitorBackendAddress = "https://stratedgeme-monitor-qa-backend.azurewebsites.net";
+        internal const string MonitorBackendAppUri = "https://gsgfintech.com/stratedgeme-monitor-qa-backend";
         internal const string MarketDataServiceAddress = "https://tryphon.gsg.capital:10204";
         internal const string MarketDataServiceAppUri = "https://gsgfintech.com/market-data-service";
         internal const string TwsServiceBackendAddress = "https://gsg-srv-3.gsg.capital:10202";
@@ -91,11 +91,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 #endregion
 
                 #region Load IB CME Future Contracts
-                var ibCmeFutContractsResult = await backendConnector.IBCmeFutureContractsConnector.GetAll();
+                var ibFutContractsResult = await backendConnector.IBFutureContractsConnector.GetAll();
 
-                if (!ibContractsResult.Success)
+                if (!ibFutContractsResult.Success)
                 {
-                    logger.Error("Failed to load IB FX contracts list");
+                    logger.Error("Failed to load IB Future contracts list");
                     return;
                 }
                 #endregion
@@ -104,7 +104,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                 AutoResetEvent stopCompleteEvent = new AutoResetEvent(false);
 
-                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContractsResult.Contracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token, ibCmeFutContractsResult.Contracts);
+                BrokerClient brokerClient = new BrokerClient(IBrokerClientType.Both, tradingExecutorRunner, clientConfig, twsServiceConnector, fxConverter, mdConnector, ibContractsResult.Contracts, new List<APIErrorCode>(), null, false, stopRequestedCts.Token, ibFutContractsResult.Contracts);
                 brokerClient.StopComplete += (() => stopCompleteEvent.Set());
                 brokerClient.AlertReceived += (alert) =>
                 {
@@ -479,7 +479,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static void TestSubscribeFuture(BrokerClient brokerClient)
         {
-            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeCMEFutures("SPX");
+            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeCMEFutures("M6B");
         }
     }
 }
