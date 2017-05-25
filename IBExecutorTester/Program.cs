@@ -479,7 +479,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static void TestSubscribeFuture(BrokerClient brokerClient)
         {
-            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeFutures("GLOBEX", "M6B", 12500);
+            ((IBMarketDataProvider)brokerClient.MarketDataProvider).SubscribeFutures("GLOBEX", "ES", 50);
         }
     }
 }
