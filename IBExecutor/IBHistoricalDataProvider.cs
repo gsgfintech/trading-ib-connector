@@ -57,9 +57,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         public async Task<(List<RTBar> Bars, DateTimeOffset? LowerBound, DateTimeOffset? UpperBound)> Retrieve5SecondsHistoricalBars(Cross cross, DateTimeOffset lowerBound, DateTimeOffset? upperBound = null)
         {
-            int[] requestIds;
-
-            if (historicalDataRequestsByCross.TryGetValue(new Tuple<Cross, int, HistoricalDataTimeSpanUnit, HistoricalDataBarSize>(cross, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS), out requestIds))
+            if (historicalDataRequestsByCross.TryGetValue(new Tuple<Cross, int, HistoricalDataTimeSpanUnit, HistoricalDataBarSize>(cross, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS), out int[] requestIds))
             {
                 var askRequest = historicalDataRequestsById[requestIds[0]];
                 var midRequest = historicalDataRequestsById[requestIds[1]];

@@ -150,7 +150,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 Task.Delay(TimeSpan.FromSeconds(10)).Wait();
 
                 //await SubscribeAndListenRTBars(brokerClient);
-                TestSubscribeFuture(brokerClient);
+                //TestSubscribeFuture(brokerClient);
 
                 //await PlaceLimitOrders(brokerClient.OrderExecutor);
                 //await PlaceAndUpdateLimitOrders(brokerClient.OrderExecutor);
@@ -168,7 +168,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                 //await TestPlaceAndUpdateLimit((IBOrderExecutor)brokerClient.OrderExecutor);
                 //await TestPlaceAndUpdateStop((IBOrderExecutor)brokerClient.OrderExecutor);
 
-                //await TestHistoData(((BrokerClient)brokerClient).HistoricalDataProvider);
+                await TestHistoData(((BrokerClient)brokerClient).HistoricalDataProvider);
                 //TestNews(((BrokerClient)brokerClient).NewsProvider);
 
                 //await CancelAllOrdersAndClosePositions(brokerClient.OrderExecutor);
