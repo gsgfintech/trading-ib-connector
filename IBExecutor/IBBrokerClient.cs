@@ -292,7 +292,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     }
 
                     if (relayToMonitoring)
-                        AlertReceived?.Invoke(new Alert() { Level = error.Level, Source = clientName, Subject = subject, Body = body });
+                        AlertReceived?.Invoke(new Alert() { Level = level, Source = clientName, Subject = subject, Body = body });
                     else
                         logger.Debug($"Not relaying error {error.ErrorCode} to monitoring interface. Flag RelayToMonitoringInterface is set to false");
                 }
