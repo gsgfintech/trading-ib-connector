@@ -179,7 +179,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                     Task.Delay(TimeSpan.FromSeconds(1)).Wait();
 
-                    requestCompletedEvent.WaitOne();
+                    requestCompletedEvent.WaitOne(TimeSpan.FromSeconds(30));
 
                     return (rtBars.ToArray().Select(kvp => kvp.Value).OrderBy(b => b.Timestamp).ToList(), resultLowerBound, resultUpperBound);
                 });

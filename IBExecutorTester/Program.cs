@@ -192,23 +192,26 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private static async Task TestHistoData(IBHistoricalDataProvider histoDataProvider)
         {
-            var result = await histoDataProvider.Retrieve5SecondsHistoricalBars(EURUSD, DateTimeOffset.Now.AddMonths(-6), DateTimeOffset.Now.AddMonths(-6).AddMinutes(15));
+            //var result = await histoDataProvider.Retrieve5SecondsHistoricalBars(USDZAR, DateTimeOffset.Now.AddMonths(-6).AddDays(1), DateTimeOffset.Now.AddMonths(-6).AddMinutes(15).AddDays(1));
+            var result = await histoDataProvider.Retrieve5SecondsHistoricalBars(USDZAR, DateTimeOffset.Now.AddMonths(-5));
 
             if (result.Bars.IsNullOrEmpty())
                 logger.Error("Result is null");
+            else
+            {
+                var bars = result.Bars;
 
-            var bars = result.Bars;
+                if (bars.First().Timestamp != result.LowerBound)
+                    logger.Error("Expected the timestamp of the first bar to match the lowerBound");
 
-            if (bars.First().Timestamp != result.LowerBound)
-                logger.Error("Expected the timestamp of the first bar to match the lowerBound");
+                if (bars.Last().Timestamp != result.UpperBound)
+                    logger.Error("Expected the timestamp of the last bar to match the upperBound");
 
-            if (bars.Last().Timestamp != result.UpperBound)
-                logger.Error("Expected the timestamp of the last bar to match the upperBound");
+                var incomPleteBars = bars.Count(b => b.Ask == null || b.Mid == null || b.Bid == null);
 
-            var incomPleteBars = bars.Count(b => b.Ask == null || b.Mid == null || b.Bid == null);
-
-            if (incomPleteBars > 0)
-                logger.Error($"{incomPleteBars} bars are missing a ask/mid/bid");
+                if (incomPleteBars > 0)
+                    logger.Error($"{incomPleteBars} bars are missing a ask/mid/bid");
+            }
         }
 
         private static void TestNews(IBNewsProvider newsProvider)
