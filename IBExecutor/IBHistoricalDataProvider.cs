@@ -32,26 +32,38 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void SetupHistoricalDataRequests(IEnumerable<Contract> ibContracts)
         {
-            if (!ibContracts.IsNullOrEmpty())
+            try
             {
-                historicalDataRequestsByCross = new Dictionary<Tuple<Cross, int, HistoricalDataTimeSpanUnit, HistoricalDataBarSize>, int[]>();
-                historicalDataRequestsById = new Dictionary<int, HistoricalDataRequest>();
-
-                int counter = 1000;
-                foreach (Contract contract in ibContracts)
+                if (!ibContracts.IsNullOrEmpty())
                 {
-                    int askId = counter + 1;
-                    int midId = counter + 2;
-                    int bidId = counter + 3;
+                    historicalDataRequestsByCross = new Dictionary<Tuple<Cross, int, HistoricalDataTimeSpanUnit, HistoricalDataBarSize>, int[]>();
+                    historicalDataRequestsById = new Dictionary<int, HistoricalDataRequest>();
 
-                    historicalDataRequestsByCross.Add(new Tuple<Cross, int, HistoricalDataTimeSpanUnit, HistoricalDataBarSize>(contract.Cross, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS), new int[3] { askId, midId, bidId });
+                    int counter = 1000;
+                    foreach (Contract contract in ibContracts)
+                    {
+                        var key = new Tuple<Cross, int, HistoricalDataTimeSpanUnit, HistoricalDataBarSize>(contract.Cross, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS);
 
-                    historicalDataRequestsById.Add(askId, new HistoricalDataRequest(askId, contract, HistoricalDataDataType.ASK, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS));
-                    historicalDataRequestsById.Add(midId, new HistoricalDataRequest(midId, contract, HistoricalDataDataType.MIDPOINT, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS));
-                    historicalDataRequestsById.Add(bidId, new HistoricalDataRequest(bidId, contract, HistoricalDataDataType.BID, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS));
+                        if (!historicalDataRequestsByCross.ContainsKey(key))
+                        {
+                            int askId = counter + 1;
+                            int midId = counter + 2;
+                            int bidId = counter + 3;
 
-                    counter += 1000;
+                            historicalDataRequestsByCross.Add(key, new int[3] { askId, midId, bidId });
+
+                            historicalDataRequestsById.Add(askId, new HistoricalDataRequest(askId, contract, HistoricalDataDataType.ASK, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS));
+                            historicalDataRequestsById.Add(midId, new HistoricalDataRequest(midId, contract, HistoricalDataDataType.MIDPOINT, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS));
+                            historicalDataRequestsById.Add(bidId, new HistoricalDataRequest(bidId, contract, HistoricalDataDataType.BID, 3600, HistoricalDataTimeSpanUnit.SECONDS, HistoricalDataBarSize.FIVE_SECONDS));
+
+                            counter += 1000;
+                        }
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Failed to setup historical market data requests", ex);
             }
         }
 
