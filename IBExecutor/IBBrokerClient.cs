@@ -161,15 +161,17 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             subject = $"Duplicate order ID: {error.RequestID}";
                             logger.Info("Received duplicate order ID error. Will notify order executor to increment its next valid order ID");
                             await orderExecutor.RequestNextValidOrderID();
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, message: subject);
                             break;
                         case 110:
                             subject = $"Limit or stop price of order {error.RequestID} is invalid";
-                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}";
+                            body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}. Marking the order as cancelled";
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, message: subject);
                             break;
                         case 135:
                             subject = $"Order {error.RequestID} is not recognized by TWS";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}. Marking it as cancelled";
-                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, message: subject);
                             break;
                         case 161:
                             subject = $"Order {error.RequestID} is not cancellable";
@@ -191,7 +193,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 201:
                             subject = $"Order {error.RequestID} was rejected";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
-                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, message: subject);
                             break;
                         case 202:
                             subject = $"Order {error.RequestID} was cancelled";
@@ -200,7 +202,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 436:
                             subject = $"Order {error.RequestID} was rejected: missing allocation";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}: {body}";
-                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, null, null, null, -1, null, null);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, message: subject);
                             break;
                         case 1100: // TWS<->IB connection broken
                             subject = error.ErrorCodeDescription;
@@ -259,7 +261,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         case 10147:
                             subject = $"Order {error.RequestID} to cancel is invalid";
                             body = $"[{error.Level} {error.ErrorCode}] {subject}: {error.ErrorCodeDescription}. Will mark it as cancelled in our systems";
-                            orderExecutor.NotifyOrderCancelled(error.RequestID);
+                            orderExecutor.OnOrderStatusChangeReceived(error.RequestID, OrderStatusCode.ApiCanceled, message: subject);
                             break;
                         case 10148:
                             subject = $"Order {error.RequestID} cannot be cancelled";

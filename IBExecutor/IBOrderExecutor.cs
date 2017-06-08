@@ -93,12 +93,6 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             failedOrderCancellationRequests.TryAdd(orderId, error);
         }
 
-        internal void NotifyOrderCancelled(int orderId)
-        {
-            logger.Info($"Received cancellation notification for order {orderId}");
-            HandleOrderCancellation(orderId);
-        }
-
         internal async Task RequestNextValidOrderID()
         {
             CancellationTokenSource internalCts = new CancellationTokenSource();
@@ -231,8 +225,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         string err = $"Order {kvp.Key} has been awaiting confirmation for more than 3 minutes ({kvp.Value}). Requesting to cancel it and mark it as such";
                         logger.Error(err);
 
-                        DateTimeOffset discarded;
-                        if (ordersAwaitingPlaceConfirmation.TryRemove(kvp.Key, out discarded))
+                        if (ordersAwaitingPlaceConfirmation.TryRemove(kvp.Key, out DateTimeOffset _))
                         {
                             SendError($"Unconfirmed order {kvp.Key}", err);
                             await CancelOrder(kvp.Key);
@@ -328,8 +321,16 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             brokerClient.OnAlert(new Alert() { Level = AlertLevel.FATAL, Source = nameof(IBOrderExecutor), Subject = subject, Body = body, ActionUrl = actionUrl, Timestamp = DateTimeOffset.Now, AlertId = Guid.NewGuid().ToString() });
         }
 
-        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, double? filledQuantity, double? remainingQuantity, double? avgFillPrice, long permId, int? parentId, double? lastFillPrice)
+        private void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, double? filledQuantity, double? remainingQuantity, double? avgFillPrice, long permId, int? parentId, double? lastFillPrice)
         {
+            OnOrderStatusChangeReceived(orderId, status, filledQuantity, remainingQuantity, avgFillPrice, permId, parentId, lastFillPrice);
+        }
+
+        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status = null, double? filledQuantity = null, double? remainingQuantity = null, double? avgFillPrice = null, long permId = -1, int? parentId = null, double? lastFillPrice = null, string message = null)
+        {
+            if (permId == -1)
+                permId = GenerateFakeOrderPermanentId(orderId);
+
             logger.Info($"Received notification of change of status for order {orderId}: status:{status}|filledQuantity:{filledQuantity}|remainingQuantity:{remainingQuantity}|avgFillPrice:{avgFillPrice}|permId:{permId}|parentId:{parentId}|lastFillPrice:{lastFillPrice}");
 
             if (permId == 0)
@@ -354,20 +355,21 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
             {
                 logger.Error($"Received update notification of an unknown order ({orderId} / {permId}). This is unexpected. Please check");
 
-                Order newOrder = new Order();
-                newOrder.OrderID = orderId;
-                newOrder.PermanentID = permId;
-                newOrder.ParentOrderID = parentId;
-                newOrder.LastUpdateTime = DateTimeOffset.Now;
-
-                newOrder.Status = status ?? Submitted;
+                Order newOrder = new Order
+                {
+                    OrderID = orderId,
+                    PermanentID = permId,
+                    ParentOrderID = parentId,
+                    LastUpdateTime = DateTimeOffset.Now,
+                    Status = status ?? Submitted
+                };
 
                 if (status == Submitted)
                     newOrder.PlacedTime = DateTimeOffset.Now;
                 else if (status == Filled)
                     newOrder.FillPrice = avgFillPrice ?? lastFillPrice;
 
-                newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status });
+                newOrder.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = newOrder.Status, Message = message });
 
                 return newOrder;
             },
@@ -383,7 +385,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     oldValue.Status = status.Value;
 
                     if (oldValue.History.LastOrDefault()?.Status != status.Value)
-                        oldValue.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = status.Value });
+                        oldValue.History.Add(new OrderHistoryPoint() { Timestamp = DateTimeOffset.Now, Status = status.Value, Message = message });
                 }
 
                 if (status == Filled)
@@ -400,6 +402,8 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void HandleOrderCancellation(int orderId)
         {
+            logger.Info($"Received cancellation notification for order {orderId}");
+           
             // 1. Add it to orders cancelled list
             ordersCancelled.AddOrUpdate(orderId, DateTimeOffset.Now, (key, oldValue) => oldValue);
 
@@ -472,7 +476,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                             {
                                 if (order.Order.IsVirtual)
                                 {
-                                    long permId = -1 * long.Parse($"{order.Order.OrderID}{DateTimeOffset.Now:yyyyMMddHHmmss}");
+                                    long permId = -1 * GenerateFakeOrderPermanentId(order.Order.OrderID);
 
                                     if (order.Order.Type == MARKET || (order.Order.Origin != OrderOrigin.PositionClose_ContLimit && order.Order.Origin != OrderOrigin.PositionClose_ContStop))
                                     {
@@ -545,6 +549,11 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     logger.Warn("Stopping orders placing queue processing due to stop requested");
                 }
             }/*, stopRequestedCt*/);
+        }
+
+        private long GenerateFakeOrderPermanentId(int orderId)
+        {
+            return long.Parse($"{orderId}{DateTimeOffset.Now:yyyyMMddHHmmss}");
         }
 
         private double? GetFillPriceFromMDService(Cross cross, OrderSide side)
@@ -1130,9 +1139,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                         if (confirmedCancelled.Item1)
                             return new GenericActionResult(true, $"Order {orderId} was confirmed cancelled at {confirmedCancelled.Item2}");
 
-                        string cancelFailedError;
-
-                        if (failedOrderCancellationRequests.TryRemove(orderId, out cancelFailedError))
+                        if (failedOrderCancellationRequests.TryRemove(orderId, out string cancelFailedError))
                             return new GenericActionResult(false, cancelFailedError);
 
                         Task.Delay(TimeSpan.FromSeconds(1)).Wait();
