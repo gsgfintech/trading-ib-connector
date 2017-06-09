@@ -242,7 +242,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                                     logger.Error(err2);
                                     SendError($"Order not cancelled {kvp.Key}", err);
 
-                                    OnOrderStatusChangeReceived(kvp.Key, ApiCanceled, null, null, null, -1, null, null);
+                                    ProcessOrderStatusChange(kvp.Key, ApiCanceled);
                                 }
                             }
                         }
@@ -323,10 +323,10 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status, double? filledQuantity, double? remainingQuantity, double? avgFillPrice, long permId, int? parentId, double? lastFillPrice)
         {
-            OnOrderStatusChangeReceived(orderId, status, filledQuantity, remainingQuantity, avgFillPrice, permId, parentId, lastFillPrice);
+            ProcessOrderStatusChange(orderId, status, filledQuantity, remainingQuantity, avgFillPrice, permId, parentId, lastFillPrice);
         }
 
-        internal void OnOrderStatusChangeReceived(int orderId, OrderStatusCode? status = null, double? filledQuantity = null, double? remainingQuantity = null, double? avgFillPrice = null, long permId = -1, int? parentId = null, double? lastFillPrice = null, string message = null)
+        internal void ProcessOrderStatusChange(int orderId, OrderStatusCode? status = null, double? filledQuantity = null, double? remainingQuantity = null, double? avgFillPrice = null, long permId = -1, int? parentId = null, double? lastFillPrice = null, string message = null)
         {
             if (permId == -1)
                 permId = GenerateFakeOrderPermanentId(orderId);
@@ -403,7 +403,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
         private void HandleOrderCancellation(int orderId)
         {
             logger.Info($"Received cancellation notification for order {orderId}");
-           
+
             // 1. Add it to orders cancelled list
             ordersCancelled.AddOrUpdate(orderId, DateTimeOffset.Now, (key, oldValue) => oldValue);
 
@@ -494,7 +494,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                                         if (!fillPrice.HasValue)
                                             logger.Error($"Failed to determine fill price for virtual order {order.Order.OrderID}");
 
-                                        OnOrderStatusChangeReceived(order.Order.OrderID, Filled, order.Order.Quantity, 0, fillPrice, permId, order.Order.ParentOrderID, fillPrice);
+                                        ProcessOrderStatusChange(order.Order.OrderID, Filled, order.Order.Quantity, 0, fillPrice, permId: permId, parentId: order.Order.ParentOrderID, lastFillPrice: fillPrice, message: "Auto-filled virtual order");
                                     }
                                     else if (order.Order.LimitPrice.HasValue || order.Order.StopPrice.HasValue)
                                     {
@@ -507,7 +507,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
                                         openVirtualOrders.AddOrUpdate(order.Order.OrderID, order.Order, (key, oldValue) => order.Order);
 
-                                        OnOrderStatusChangeReceived(order.Order.OrderID, Submitted, 0, order.Order.Quantity, null, permId, order.Order.ParentOrderID, null);
+                                        ProcessOrderStatusChange(order.Order.OrderID, Submitted, 0, order.Order.Quantity, permId: permId, parentId: order.Order.ParentOrderID);
                                     }
                                     else
                                         logger.Error($"Unable to add virtual order {order.Order} because it has no valid limit or stop price");
@@ -553,7 +553,15 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private long GenerateFakeOrderPermanentId(int orderId)
         {
-            return long.Parse($"{orderId}{DateTimeOffset.Now:yyyyMMddHHmmss}");
+            try
+            {
+                return long.Parse($"{orderId}{DateTimeOffset.Now:yyyyMMddHHmmss}");
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"Failed to generate fake order permanent ID (orderId={orderId})", ex);
+                return -1;
+            }
         }
 
         private double? GetFillPriceFromMDService(Cross cross, OrderSide side)
@@ -1272,7 +1280,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
 
         private void ReportCancelled(Order order)
         {
-            OnOrderStatusChangeReceived(order.OrderID, Cancelled, 0, 0, 0, order.PermanentID, order.ParentOrderID, 0);
+            ProcessOrderStatusChange(order.OrderID, Cancelled, 0, 0, 0, order.PermanentID, order.ParentOrderID, 0);
         }
 
         public async Task<(bool Success, string Message, Dictionary<Tuple<string, Cross>, double?> ClosedPositions)> CloseAllPositions(IEnumerable<Cross> crosses, OrderOrigin origin = OrderOrigin.PositionClose_TE, CancellationToken ct = default(CancellationToken))
@@ -1719,7 +1727,7 @@ namespace Net.Teirlinck.FX.InteractiveBrokersAPI.Executor
                     if (openVirtualOrders.TryRemove(orderId, out Order orderToFill))
                     {
                         double? fillPrice = (orderToFill.Side == BUY) ? askPrice : bidPrice;
-                        OnOrderStatusChangeReceived(orderId, Filled, orderToFill.Quantity, 0, fillPrice, orderToFill.PermanentID, orderToFill.ParentOrderID, fillPrice);
+                        ProcessOrderStatusChange(orderId, Filled, orderToFill.Quantity, 0, fillPrice, orderToFill.PermanentID, orderToFill.ParentOrderID, fillPrice, "Auto-filled virtual order");
                     }
                 }
 
